@@ -29,6 +29,11 @@
 #include <ArduinoJson.h>
 #include "config.h"
 
+// Stop with a clear message if this folder still has an old config.h next to a newer sketch.
+#if !defined(FEATURE_CONFIRM) || !defined(SENSOR_AHEAD_CM) || !defined(PIN_LINE_D5)
+#error "config.h is out of date: copy firmware/ojanbot_synapse/config.h from the repo into this sketch's folder"
+#endif
+
 // ---------------------------------------------------------------- shared types
 enum Act : uint8_t { A_PASS, A_STOP, A_LEFT, A_RIGHT, A_UTURN, A_GO };
 static const uint8_t MAX_MARKS = 24;

@@ -21,6 +21,11 @@
 #include <WiFiClientSecure.h>
 #include "config.h"   // copy of ../ojanbot_synapse/config.h - keep the two identical
 
+// Stop with a clear message if this folder still has an old config.h next to a newer sketch.
+#if !defined(FEATURE_CONFIRM) || !defined(SENSOR_AHEAD_CM) || !defined(PIN_LINE_D5)
+#error "config.h is out of date: copy firmware/ojanbot_synapse/config.h from the repo into this sketch's folder"
+#endif
+
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
 static void pwmSetup(int pin, int ch) { if (pin >= 0) ledcAttach(pin, PWM_FREQ_HZ, PWM_BITS); }
 static void pwmWrite(int pin, int ch, int duty) { if (pin >= 0) ledcWrite(pin, duty); }

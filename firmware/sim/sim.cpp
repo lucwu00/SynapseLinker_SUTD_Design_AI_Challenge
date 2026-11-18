@@ -27,6 +27,7 @@ const double LO=0.10, HI=0.50, MID=0.30, R=0.08, TW=0.019, MARKL=0.08, DS=0.045,
 struct P{double x,y;};
 static double rx=0.30, ry=0.10, th=0; // START facing +x
 static std::vector<P> obst;
+static bool bootButton=false;
 static std::vector<P> people;
 double distToRect(double x,double y){
   double cx=std::max(LO+R,std::min(HI-R,x)), cy=std::max(LO+R,std::min(HI-R,y));
@@ -44,7 +45,7 @@ bool black(double x,double y){
   return false;
 }
 int digitalRead(int p){
-  if (p==PIN_ESTOP) return 1;
+  if (p==PIN_ESTOP) return bootButton ? 0 : 1;
   for(int i=0;i<5;i++) if(LINE_PINS[i]==p){ double lat=(2-i)*PITCH; // D1 leftmost
       double sx=rx+DS*cos(th)-lat*sin(th), sy=ry+DS*sin(th)+lat*cos(th); return black(sx,sy)?1:0; }
   return 0;
@@ -92,6 +93,20 @@ int main(){
   puts("== REROUTE back to the left T (top of T: RIGHT), over the top past Station 2, STOP Station 1 scan RIGHT");
   cmd("REROUTE","T3","GO",{{'J','C',"RIGHT",0,48},{'S','C',"PASS",36.6,44.6},{'S','C',"STOP",28.6,36.6}},true,false);
   runUntil("ARRIVED",40000);
+  puts("== E-STOP checks: BOOT button during centring on a station, dashboard STOP during the room scan turn");
+  rx=0.30; ry=0.10; th=0; obst.clear(); people.clear();
+  cmd("NAVIGATE","T5","GO",{{'J','L',"PASS",36.6,44.6},{'S','C',"STOP",8,16}},true,true);
+  runUntil("CENTER",20000);
+  bootButton=true; for(int i=0;i<60;i++){NOW++; lastCommOkMs=NOW; loop(); physics(0.001);} bootButton=false;
+  { double x0=rx,y0=ry; for(int i=0;i<3000;i++){NOW++; lastCommOkMs=NOW; loop(); physics(0.001);}
+    printf("   during e-stop: state=%s wheels L=%d R=%d moved %.4f m in 3 s\n",STATE_NAME[state],pwmL1-pwmL2,pwmR1-pwmR2,hypot(rx-x0,ry-y0)); }
+  cmd("RESUME","","GO",{}); runUntil("SCAN_OUT",3000);
+  for(int i=0;i<150;i++){NOW++; lastCommOkMs=NOW; loop(); physics(0.001);}
+  cmd("STOP","","GO",{});
+  { double t0=th; for(int i=0;i<3000;i++){NOW++; lastCommOkMs=NOW; loop(); physics(0.001);}
+    printf("   e-stop mid-scan: state=%s turned %.2f rad in 3 s\n",STATE_NAME[state],fabs(th-t0)); }
+  cmd("RESUME","","GO",{}); runUntil("ARRIVED",8000);
+  puts("== Ultrasonic unplugged (no echo ever): robot still drives, scan reports FREE with nearest -1");
   puts("== Wrong map: tell it a junction comes first when it is a station -> must stop safely");
   rx=0.30; ry=0.10; th=M_PI; obst.clear();   // at START facing left: next is Station 3 bar
   cmd("NAVIGATE","T4","GO",{{'J','R',"RIGHT",28.6,36.6},{'S','C',"STOP",8,16}},false);

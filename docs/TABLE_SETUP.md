@@ -36,12 +36,45 @@ All positions are in **cm from the bottom-left corner of the table** (the corner
 
 The 10 cm inset assumes the robot's half-diagonal is at most 8 cm (a robot up to about 11 × 11 cm). Measure yours corner to corner: if half of that plus 2 cm is more than 10 cm, the robot can hang over the edge when it turns at START. Then move the whole track 1–2 cm in and update the coordinates in the map (or ask for the map to be regenerated).
 
-## 3. Calibrate the robot (hardware test sketch, about 25 minutes)
+## 3. Wire the robot (Cytron OjanBot, Robo/Maker ESP32)
+
+Motors stay on the board's motor terminals: MOTOR 1 (M1A = GPIO 12, M1B = GPIO 13) is the left wheel, MOTOR 2 (M2A = GPIO 14, M2B = GPIO 27) the right wheel.
+
+**Maker Line: use all five digital outputs.** The kit usually connects only the single analog wire (AN); this firmware cannot use that, because it needs to see *which side* the tape is on. Disconnect the AN cable and run six female-female jumper wires from the Maker Line's pin header to the ESP32 board's GPIO header:
+
+| Maker Line pin | ESP32 header pin | Notes |
+|---|---|---|
+| VCC | 3V3 | 3.3 V, not 5 V, so D1–D5 never exceed 3.3 V |
+| GND | GND | |
+| D1 (leftmost sensor, looking the way the robot drives) | D15 | boot-strapping pin |
+| D2 | D2 | boot-strapping pin; also the blue LED, so the status LED is disabled in firmware |
+| D3 (centre) | D4 | |
+| D4 | D5 | boot-strapping pin |
+| D5 (rightmost) | D18 | |
+| AN, CAL | not connected | |
+
+**Ultrasonic:**
+
+| Sensor pin | ESP32 header pin | Notes |
+|---|---|---|
+| VCC | 3V3 for a 3.3 V sensor (HC-SR04P, Cytron Maker Ultrasonic); 5V/VIN for a classic HC-SR04 | |
+| GND | GND | |
+| TRIG | D21 | direct |
+| ECHO | D22 | 3.3 V sensor: direct. 5 V HC-SR04: through a divider, 1 kΩ from ECHO to D22 and 2 kΩ from D22 to GND |
+
+Nothing else may be plugged into the Maker port / Grove 2 (they share 21 and 22).
+
+**Upload tip:** if an upload fails with "Failed to connect", the Maker Line is holding GPIO 2 high. Stand the robot on white paper, or pull the D2 wire, during the upload.
+
+**Check the wiring:** with `ojanbot_hw_test` running, type `k` and slide the robot across the tape for 6 s. It reports, for each of D1–D5, "changes – wired OK" or "stuck", and whether the ultrasonic gets any echo. If no D pin changes, the Maker Line is still on its analog wire or unpowered.
+
+## 4. Calibrate the robot (hardware test sketch, about 25 minutes)
 
 Flash `firmware/ojanbot_hw_test` (see `firmware/README.md`), open Serial Monitor at 115200 baud and put the dummy weight on the robot.
 
 | Step | Command | Pass when | If not, change in `config.h` |
 |---|---|---|---|
+| 0 Wiring | `k`, slide across the tape | All five D pins "changes", ultrasonic has echoes | See section 3 |
 | 1 Line sensor | `l`, slide the robot across the tape | `..#..` when centred; on a station bar `#####` ("BAR"); over a junction branch `###..` or `..###` | Left/right reversed: swap D1↔D5 pins. All inverted: `LINE_ACTIVE_HIGH 0`. Bar not "BAR": make it longer |
 | 2 Wheels | `L`, `R`, `f` (wheels lifted first) | Each named wheel rolls forward | Wrong wheel: swap the L and R pins. Backwards: `INVERT_LEFT` / `INVERT_RIGHT` 1 |
 | 3 Ultrasonic | `u`, hold a box 5, 8 and 12 cm away | Readings within about 1 cm | Check the ECHO divider and pins |
@@ -53,7 +86,7 @@ Flash `firmware/ojanbot_hw_test` (see `firmware/README.md`), open Serial Monitor
 
 Then flash `firmware/ojanbot_synapse` with the same `config.h`.
 
-## 4. Demo day: who runs what
+## 5. Demo day: who runs what
 
 ```
 System laptop (Windows)                    EDi-01 (OjanBot + phone)       Virtual-robot laptop
@@ -75,7 +108,7 @@ System laptop (Windows)                    EDi-01 (OjanBot + phone)       Virtua
 - **Completely blocked:** with the real robot, put a second box on the middle corridor and a third on the top corridor. Each time it stops, turns round and is rerouted; when there is no way left it stops and staff are alerted. (In simulation, click those corridors on the presenter's floor map.)
 - **Emergency stop:** the presenter's Emergency stop button, or the BOOT button on the ESP32. It stays stopped until Resume.
 
-## 5. Troubleshooting
+## 6. Troubleshooting
 
 | Serial message / symptom | Likely cause |
 |---|---|

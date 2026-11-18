@@ -10,12 +10,11 @@
 #define OUTPUT 1
 #define INPUT 0
 #define INPUT_PULLUP 2
-#define ESP_ARDUINO_VERSION_MAJOR 3
 typedef uint8_t byte;
 uint32_t millis(); void delay(uint32_t); void delayMicroseconds(uint32_t);
 void pinMode(int,int); int digitalRead(int); void digitalWrite(int,int);
 unsigned long pulseIn(int,int,unsigned long);
-bool ledcAttach(int,int,int); void ledcWrite(int,int);
+bool ledcAttach(int,int,int); void ledcWrite(int,int); void ledcSetup(int,int,int); void ledcAttachPin(int,int);
 template<class T> T constrain(T x, T a, T b){ return x<a?a:(x>b?b:x);} 
 using std::min; using std::max;
 struct String : std::string { String(){} String(const char*s):std::string(s){} String(const std::string&s):std::string(s){}

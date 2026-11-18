@@ -25,12 +25,14 @@
 //   DRIVER_EN_DIR: each motor has EN (PWM) + IN1 + IN2 (L298N style)
 #define DRIVER_2PWM    1
 #define DRIVER_EN_DIR  2
-#define MOTOR_DRIVER   DRIVER_2PWM             // >>> CHECK
+#define MOTOR_DRIVER   DRIVER_2PWM             // Cytron Robo ESP32: two PWM inputs per motor
 
-#define PIN_L_IN1  25                          // >>> CHECK  left motor
-#define PIN_L_IN2  26
-#define PIN_R_IN1  27                          // >>> CHECK  right motor
-#define PIN_R_IN2  14
+// Cytron Robo ESP32 datasheet: M1A = D12, M1B = D13, M2A = D14, M2B = D27.
+// If the robot turns when told to go straight, the motors are on the other terminals: swap L and R.
+#define PIN_L_IN1  12                          // MOTOR 1 terminal (M1A)
+#define PIN_L_IN2  13                          //                  (M1B)
+#define PIN_R_IN1  14                          // MOTOR 2 terminal (M2A)
+#define PIN_R_IN2  27                          //                  (M2B)
 #define PIN_L_EN   -1                          // only for DRIVER_EN_DIR
 #define PIN_R_EN   -1
 
@@ -42,23 +44,35 @@
 #define PWM_BITS      8                        // duty 0..255
 
 // ---------------------------------------------------------------- Cytron Maker Line (5 digital outputs)
-// Power the Maker Line from 3.3 V so its outputs are safe for ESP32 pins.
+// The robot needs the 5 DIGITAL outputs D1-D5 (not the single AN analog output): it has to see
+// which side the tape is on to tell station bars from junctions. Wiring: docs/TABLE_SETUP.md section 3.
+// Power the Maker Line from 3.3 V so D1-D5 swing 0-3.3 V (ESP32-safe).
 // D1 = leftmost sensor when you stand BEHIND the robot looking the way it drives.
-#define PIN_LINE_D1  36                        // >>> CHECK (36/39/34/35 are input-only pins - fine for sensors)
-#define PIN_LINE_D2  39
-#define PIN_LINE_D3  34
-#define PIN_LINE_D4  35
-#define PIN_LINE_D5  32
+// NOTE: GPIO 2, 5 and 15 are ESP32 boot-strapping pins. If an upload fails with "Failed to connect",
+//       stand the robot on white (sensors LOW) or unplug the D2 wire (GPIO 2) while uploading.
+#define PIN_LINE_D1  15
+#define PIN_LINE_D2   2                        // shared with the NodeMCU's blue LED: status LED is disabled
+#define PIN_LINE_D3   4
+#define PIN_LINE_D4   5
+#define PIN_LINE_D5  18
 #define LINE_ACTIVE_HIGH  1                    // >>> CHECK 1 = output HIGH when the sensor is over black tape
 
 // ---------------------------------------------------------------- HC-SR04 ultrasonic (front)
-// ECHO is 5 V: use a divider (1 k from ECHO, 2 k to GND, take the middle) into the ESP32.
-#define PIN_US_TRIG  5                         // >>> CHECK
-#define PIN_US_ECHO  18                        // >>> CHECK
+// TRIG 21 / ECHO 22 (Robo ESP32: Maker port / Grove 2 pins - leave nothing else plugged in there).
+// ESP32 pins take 3.3 V max. A 3.3 V sensor (HC-SR04P, RCWL-1601, Cytron Maker Ultrasonic powered
+// at 3.3 V) connects directly. A classic 5 V HC-SR04 needs a divider on ECHO:
+//     ECHO --[1 k]--+--> GPIO 22        (TRIG can go straight to GPIO 21)
+//                   |
+//                 [2 k]
+//                   |
+//                  GND
+#define PIN_US_TRIG  21
+#define PIN_US_ECHO  22
 
 // ---------------------------------------------------------------- other
 #define PIN_ESTOP     0      // BOOT button on the ESP32 board: press = emergency stop (needs operator RESUME)
-#define PIN_LED       2      // on-board LED: slow blink = idle, solid = moving, fast blink = stopped/fault
+#define PIN_LED      -1      // status LED disabled: GPIO 2 is used by Maker Line D2. (Any free pin: slow blink =
+                             // idle, solid = moving, fast blink = stopped/fault.)
 
 // ---------------------------------------------------------------- driving (tune on the table)
 #define BASE_SPEED        120   // 0-255 while following the line. Start low; the table is small.

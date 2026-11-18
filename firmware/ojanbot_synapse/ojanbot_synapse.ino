@@ -22,6 +22,7 @@
 //  Libraries: ESP32 board package 2.x or 3.x, ArduinoJson 7.x. Board: "ESP32 Dev Module".
 //  Settings live in config.h. Test with firmware/ojanbot_hw_test and a DUMMY weight first.
 // ============================================================================
+#include <esp_arduino_version.h>   // ESP_ARDUINO_VERSION_MAJOR on core 2.x and 3.x
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
@@ -589,7 +590,9 @@ void setup() {
   for (int i = 0; i < 5; i++) pinMode(LINE_PINS[i], INPUT);
   pinMode(PIN_US_TRIG, OUTPUT); pinMode(PIN_US_ECHO, INPUT);
   pinMode(PIN_ESTOP, INPUT_PULLUP);
+#if PIN_LED >= 0
   pinMode(PIN_LED, OUTPUT);
+#endif
   cmdQ = xQueueCreate(8, sizeof(Command));
   statusQ = xQueueCreate(16, sizeof(Status));
   lastCommOkMs = millis();
@@ -619,7 +622,11 @@ void loop() {
   // LED: solid while moving, fast blink when stopped by safety, slow blink idle
   bool fast = state == FAULT || state == ESTOP || state == BLOCKED || state == WAIT_REROUTE;
   uint32_t per = moving() && !fast ? 0 : (fast ? 150 : 800);
+#if PIN_LED >= 0
   digitalWrite(PIN_LED, per == 0 ? HIGH : ((millis() / per) % 2));
+#else
+  (void)per;
+#endif
 
   if (millis() - lastLog > 2000) {
     lastLog = millis();

@@ -15,17 +15,22 @@ Both use the same `config.h`. Edit `ojanbot_synapse/config.h`, then copy it over
 2. **Library Manager:** install "ArduinoJson" by Benoit Blanchon, version 7.
 3. Board: **ESP32 Dev Module**. Port: the robot's USB port. Upload speed 921600 (lower it to 115200 if uploads fail).
 4. Open `ojanbot_hw_test/ojanbot_hw_test.ino`, upload, open Serial Monitor at **115200**, and follow `docs/TABLE_SETUP.md` step 3.
-5. Open `ojanbot_synapse/ojanbot_synapse.ino`, set `WIFI_SSID`, `WIFI_PASSWORD` and `BACKEND_URL` in `config.h`, and upload.
+5. Click **Verify** on both sketches first: that is the real compile (here they were only checked against stub headers). Then open `ojanbot_synapse/ojanbot_synapse.ino`, set `WIFI_SSID`, `WIFI_PASSWORD` and `BACKEND_URL` in `config.h`, and upload.
 
 The ESP32's current OjanBot joystick page (Wi-Fi access point 192.168.4.1) is replaced by this firmware. To get it back, re-flash the original OjanBot sketch.
 
-## Pins to confirm (send your original OjanBot sketch if unsure)
+## Pins (Cytron OjanBot with Robo / Maker ESP32)
 
-| `config.h` | Placeholder | What to check |
-|---|---|---|
-| `MOTOR_DRIVER`, `PIN_L_IN1/2`, `PIN_R_IN1/2` (`PIN_L_EN/R_EN`) | 25, 26, 27, 14 | The motor pins in the original OjanBot sketch, and whether it uses 2 PWM pins per motor or EN + 2 direction pins |
-| `PIN_LINE_D1..D5` | 36, 39, 34, 35, 32 | Where the Maker Line D1–D5 wires go. Power the Maker Line from **3.3 V** |
-| `PIN_US_TRIG`, `PIN_US_ECHO` | 5, 18 | HC-SR04 pins. ECHO is 5 V: use a divider (1 kΩ + 2 kΩ) |
+| Function | GPIO |
+|---|---|
+| Left motor (MOTOR 1: M1A, M1B), PWM-PWM | 12, 13 |
+| Right motor (MOTOR 2: M2A, M2B), PWM-PWM | 14, 27 |
+| Maker Line D1 … D5 (digital, powered at 3.3 V) | 15, 2, 4, 5, 18 |
+| Ultrasonic TRIG / ECHO | 21 / 22 (ECHO divider if the sensor runs on 5 V) |
+| Emergency stop | BOOT button (GPIO 0) |
+| Status LED | disabled (GPIO 2 is Maker Line D2) |
+
+Wheel direction: `INVERT_LEFT` / `INVERT_RIGHT`. Exact wiring and the `k` wiring check: `docs/TABLE_SETUP.md` section 3.
 
 ## How a journey runs
 

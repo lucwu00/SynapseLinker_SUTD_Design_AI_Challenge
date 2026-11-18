@@ -6,3 +6,5 @@ frontend/node_modules/
 firmware/sim/main.cpp
 firmware/sim/config.h
 firmware/sim/sim_bin
+firmware/sim/main.cpp
+firmware/sim/hw.cpp

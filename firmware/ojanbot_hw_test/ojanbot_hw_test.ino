@@ -9,11 +9,13 @@
 //    p  pivot left 90 degrees       P  pivot 4 x 90 (should end facing the same way)
 //    m  follow the line to the next station bar and stop with the wheels on it
 //    v  follow the line for 2 s, then measure how far it went (sets CM_PER_S)
+//    k  wiring check: is the Maker Line wired through its 5 digital outputs?
 //    x  stop everything
 //
 //  Lift the wheels off the table (or hold the robot) for f/b/L/R the first time.
 //  Use a dummy weight like the phone's (about 200 g) on top while calibrating.
 // ============================================================================
+#include <esp_arduino_version.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
@@ -125,6 +127,36 @@ static void speedCheck() {
   Serial.println("Measure how far the wheels moved (cm) and set CM_PER_S = that distance / 2.");
 }
 
+// Which of the 5 digital line pins actually change? If none do, the Maker Line is not wired
+// through D1-D5 (it may still be on its single analog AN wire, which this firmware cannot use).
+static void wiringCheck() {
+  Serial.println("Slide the robot slowly back and forth across the tape for 6 s...");
+  uint8_t seenHigh = 0, seenLow = 0;
+  int usValid = 0, usTotal = 0;
+  uint32_t t0 = millis(), lastUs = 0;
+  while (millis() - t0 < 6000) {
+    for (int i = 0; i < 5; i++) { if (digitalRead(LINE_PINS[i]) == HIGH) seenHigh |= 1 << i; else seenLow |= 1 << i; }
+    if (millis() - lastUs > 100) { lastUs = millis(); usTotal++; if (distanceCm() > 0) usValid++; }
+    delay(5);
+  }
+  int changed = 0;
+  for (int i = 0; i < 5; i++) {
+    bool ch = (seenHigh & seenLow) & (1 << i);
+    changed += ch;
+    Serial.printf("  D%d on GPIO %2d: %s\n", i + 1, LINE_PINS[i], ch ? "changes - wired OK" :
+                  (seenHigh & (1 << i)) ? "stuck HIGH" : "stuck LOW (not connected?)");
+  }
+  if (changed == 0)
+    Serial.println("=> No digital line outputs detected. The Maker Line is probably still on its analog AN wire\n"
+                   "   (or unpowered). Wire D1-D5 as in docs/TABLE_SETUP.md section 3.");
+  else if (changed < 5)
+    Serial.println("=> Some D pins never changed: check those wires, or slide further so every sensor crosses the tape.");
+  else
+    Serial.println("=> All 5 digital outputs are wired.");
+  Serial.printf("Ultrasonic: %d of %d readings had an echo%s\n", usValid, usTotal,
+                usValid == 0 ? " -> NO ECHO: check TRIG/ECHO wiring and power (hold a hand in front and retry)" : "");
+}
+
 static void wifiCheck() {
   Serial.printf("Joining Wi-Fi \"%s\" ...\n", WIFI_SSID);
   WiFi.mode(WIFI_STA); WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -158,7 +190,7 @@ void setup() {
   for (int i = 0; i < 5; i++) pinMode(LINE_PINS[i], INPUT);
   pinMode(PIN_US_TRIG, OUTPUT); pinMode(PIN_US_ECHO, INPUT);
   pinMode(PIN_ESTOP, INPUT_PULLUP);
-  Serial.println("\nOjanBot hardware test. Commands: l u w f b L R p P m v x");
+  Serial.println("\nOjanBot hardware test. Commands: k l u w f b L R p P m v x");
 }
 
 void loop() {
@@ -191,7 +223,8 @@ void loop() {
       break;
     case 'm': followToMark(); break;
     case 'v': speedCheck(); break;
+    case 'k': wiringCheck(); break;
     case 'x': drive(0, 0); Serial.println("Stopped."); break;
-    default: Serial.println("Commands: l u w f b L R p P m v x");
+    default: Serial.println("Commands: k l u w f b L R p P m v x");
   }
 }

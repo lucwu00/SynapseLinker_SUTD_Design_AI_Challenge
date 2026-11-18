@@ -1,0 +1,14 @@
+model,params,split,fit_seconds,MAE,RMSE,R2
+Dummy (mean),{},val,0.1,18.294,25.485,-0.0001
+Baseline: station x hour median,{},val,0.1,12.502,23.149,0.1748
+Ridge,"{""alpha"": 1.0}",val,0.4,7.03,12.007,0.778
+Ridge,"{""alpha"": 10.0}",val,0.4,7.029,12.009,0.7779
+RandomForest,"{""min_samples_leaf"": 5}",val,8.2,4.267,8.82,0.8802
+RandomForest,"{""min_samples_leaf"": 20}",val,6.9,4.332,8.929,0.8772
+HistGradientBoosting,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 31}",val,4.1,4.249,8.678,0.884
+HistGradientBoosting,"{""learning_rate"": 0.1, ""max_leaf_nodes"": 63}",val,1.6,4.251,8.684,0.8839
+Dummy (mean),{},test,,18.82,27.446,-0.001
+Baseline: station x hour median,{},test,,13.022,25.317,0.1483
+Ridge,"{""alpha"": 10.0}",test,,7.173,12.481,0.793
+RandomForest,"{""min_samples_leaf"": 5}",test,,4.424,9.301,0.885
+HistGradientBoosting,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 31}",test,,4.322,8.915,0.8944

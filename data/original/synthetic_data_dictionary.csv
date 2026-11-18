@@ -1,0 +1,87 @@
+file,column,availability,meaning
+ortho_patients.csv,patient_id,ID traceability,Fictional patient ID
+ortho_patients.csv,sex,B rule/booking input,Fictional demographics; referral body region (not a diagnosis)
+ortho_patients.csv,birth_year,B rule/booking input,Fictional demographics; referral body region (not a diagnosis)
+ortho_patients.csv,primary_referral_category,B rule/booking input,Fictional demographics; referral body region (not a diagnosis)
+ortho_patients.csv,first_seen_date,B rule/booking input,Fictional demographics; referral body region (not a diagnosis)
+ortho_patients.csv,synthetic,Metadata,Always 1 = simulated record
+ortho_appointments.csv,visit_id,ID traceability,Visit / patient IDs
+ortho_appointments.csv,patient_id,ID traceability,Visit / patient IDs
+ortho_appointments.csv,date,A safe at prediction time,Booking info known in advance
+ortho_appointments.csv,day_of_week,A safe at prediction time,Booking info known in advance
+ortho_appointments.csv,session,A safe at prediction time,Booking info known in advance
+ortho_appointments.csv,doctor_id,A safe at prediction time,Booking info known in advance
+ortho_appointments.csv,appointment_time,A safe at prediction time,Booking info known in advance
+ortho_appointments.csv,slot_minutes,A safe at prediction time,Booking info known in advance
+ortho_appointments.csv,visit_type,A safe at prediction time,new / follow_up / pre_op (known at booking)
+ortho_appointments.csv,referral_category,A safe at prediction time,"Referral body region from booking, e.g. Knee/Hip, Fracture, Post-op (fictional; not a diagnosis)"
+ortho_appointments.csv,clinician_priority,A safe at prediction time,"routine / expedited - set by simulated clinician triage, never by AI"
+ortho_appointments.csv,mobility,A safe at prediction time,independent / walking_aid / wheelchair (recorded at registration)
+ortho_appointments.csv,age,A safe at prediction time,Fictional demographics
+ortho_appointments.csv,sex,A safe at prediction time,Fictional demographics
+ortho_appointments.csv,planned_steps,B rule/booking input,Rule-based pathway for this visit (ortho_service_dependencies.csv); flexible group = steps in any order
+ortho_appointments.csv,n_steps,B rule/booking input,Rule-based pathway for this visit (ortho_service_dependencies.csv); flexible group = steps in any order
+ortho_appointments.csv,flexible_order_group,B rule/booking input,Rule-based pathway for this visit (ortho_service_dependencies.csv); flexible group = steps in any order
+ortho_appointments.csv,no_show,C known only after service,Known only at appointment time
+ortho_appointments.csv,arrival_time,A safe at prediction time,Known once patient registers (prediction is made after arrival)
+ortho_appointments.csv,arrival_offset_min,A safe at prediction time,Known once patient registers (prediction is made after arrival)
+ortho_appointments.csv,consult_start_time,D target,Outcomes - possible visit-level targets; never features
+ortho_appointments.csv,consult_wait_from_appointment_min,D target,Outcomes - possible visit-level targets; never features
+ortho_appointments.csv,clinic_exit_time,D target,Outcomes - possible visit-level targets; never features
+ortho_appointments.csv,total_time_in_clinic_min,D target,Outcomes - possible visit-level targets; never features
+ortho_appointments.csv,synthetic,Metadata,Always 1
+ortho_service_events.csv,event_id,ID traceability,IDs; group by visit/patient when splitting
+ortho_service_events.csv,visit_id,ID traceability,IDs; group by visit/patient when splitting
+ortho_service_events.csv,patient_id,ID traceability,IDs; group by visit/patient when splitting
+ortho_service_events.csv,date,A safe at prediction time,When the patient joins the station queue (prediction moment)
+ortho_service_events.csv,day_of_week,A safe at prediction time,When the patient joins the station queue (prediction moment)
+ortho_service_events.csv,month,A safe at prediction time,When the patient joins the station queue (prediction moment)
+ortho_service_events.csv,join_hour,A safe at prediction time,When the patient joins the station queue (prediction moment)
+ortho_service_events.csv,join_time,A safe at prediction time,When the patient joins the station queue (prediction moment)
+ortho_service_events.csv,station,A safe at prediction time,Which service and where in the pathway (REVIEW = second consult after X-ray)
+ortho_service_events.csv,step_name,A safe at prediction time,Which service and where in the pathway (REVIEW = second consult after X-ray)
+ortho_service_events.csv,step_index,A safe at prediction time,Which service and where in the pathway (REVIEW = second consult after X-ray)
+ortho_service_events.csv,is_review,A safe at prediction time,Which service and where in the pathway (REVIEW = second consult after X-ray)
+ortho_service_events.csv,visit_type,A safe at prediction time,Patient/visit context
+ortho_service_events.csv,referral_category,A safe at prediction time,Patient/visit context
+ortho_service_events.csv,clinician_priority,A safe at prediction time,Patient/visit context
+ortho_service_events.csv,mobility,A safe at prediction time,Patient/visit context
+ortho_service_events.csv,age,A safe at prediction time,Patient/visit context
+ortho_service_events.csv,arrival_offset_min,A safe at prediction time,Patient/visit context
+ortho_service_events.csv,minutes_since_clinic_arrival,A safe at prediction time,Patient/visit context
+ortho_service_events.csv,station_open,A safe at prediction time,1 if station had opened when patient joined
+ortho_service_events.csv,queue_length_at_join,A safe at prediction time,Patients already waiting at the station (incl. other departments at shared stations)
+ortho_service_events.csv,servers_on_duty,A safe at prediction time,Rostered servers today (unannounced breaks/outages are NOT included - realistic hidden noise)
+ortho_service_events.csv,servers_busy,A safe at prediction time,Servers currently serving
+ortho_service_events.csv,recent_mean_wait_30min,A safe at prediction time,Mean wait of patients who STARTED service in the last 30 min; blank if none (do not fill with 0)
+ortho_service_events.csv,arrivals_last_15min,A safe at prediction time,Recent flow indicators
+ortho_service_events.csv,consult_completions_last_15min,A safe at prediction time,Recent flow indicators
+ortho_service_events.csv,total_consult_queue,A safe at prediction time,Recent flow indicators
+ortho_service_events.csv,doctor_id,A safe at prediction time,"Consult rows only (blank elsewhere): doctor queue position, whether doctor has started, how late the doctor is running"
+ortho_service_events.csv,patients_ahead_for_doctor,A safe at prediction time,"Consult rows only (blank elsewhere): doctor queue position, whether doctor has started, how late the doctor is running"
+ortho_service_events.csv,doctor_present,A safe at prediction time,"Consult rows only (blank elsewhere): doctor queue position, whether doctor has started, how late the doctor is running"
+ortho_service_events.csv,doctor_running_delay_min,A safe at prediction time,"Consult rows only (blank elsewhere): doctor queue position, whether doctor has started, how late the doctor is running"
+ortho_service_events.csv,minutes_to_appointment,A safe at prediction time,"Consult rows only (blank elsewhere): doctor queue position, whether doctor has started, how late the doctor is running"
+ortho_service_events.csv,wait_min,D target,TARGET: minutes from joining the queue to service start
+ortho_service_events.csv,start_time,C known only after service,Known only after service starts/ends - never features
+ortho_service_events.csv,end_time,C known only after service,Known only after service starts/ends - never features
+ortho_service_events.csv,service_min,C known only after service,Known only after service starts/ends - never features
+ortho_service_events.csv,server_id,C known only after service,Known only after service starts/ends - never features
+ortho_service_events.csv,synthetic,Metadata,Always 1
+ortho_station_snapshots.csv,date,A safe at prediction time,"Snapshot every 15 min, 08:00-17:45, per station"
+ortho_station_snapshots.csv,day_of_week,A safe at prediction time,"Snapshot every 15 min, 08:00-17:45, per station"
+ortho_station_snapshots.csv,month,A safe at prediction time,"Snapshot every 15 min, 08:00-17:45, per station"
+ortho_station_snapshots.csv,snapshot_time,A safe at prediction time,"Snapshot every 15 min, 08:00-17:45, per station"
+ortho_station_snapshots.csv,station,A safe at prediction time,"Snapshot every 15 min, 08:00-17:45, per station"
+ortho_station_snapshots.csv,queue_length,A safe at prediction time,Current station state; booked appointments only for CONSULT
+ortho_station_snapshots.csv,servers_on_duty,A safe at prediction time,Current station state; booked appointments only for CONSULT
+ortho_station_snapshots.csv,servers_busy,A safe at prediction time,Current station state; booked appointments only for CONSULT
+ortho_station_snapshots.csv,recent_mean_wait_30min,A safe at prediction time,Current station state; booked appointments only for CONSULT
+ortho_station_snapshots.csv,arrivals_last_15min,A safe at prediction time,Current station state; booked appointments only for CONSULT
+ortho_station_snapshots.csv,consult_completions_last_15min,A safe at prediction time,Current station state; booked appointments only for CONSULT
+ortho_station_snapshots.csv,booked_appointments_next_30min,A safe at prediction time,Current station state; booked appointments only for CONSULT
+ortho_station_snapshots.csv,future_n_joiners_30min,C known only after service,"Computed from the NEXT 30 min - label inputs only, never features"
+ortho_station_snapshots.csv,future_mean_wait_30min,C known only after service,"Computed from the NEXT 30 min - label inputs only, never features"
+ortho_station_snapshots.csv,bottleneck_threshold_min,Metadata,Station service standard (hypothetical)
+ortho_station_snapshots.csv,bottleneck_next_30min,L label (future window),TARGET: 1 if mean wait of patients joining in the next 30 min exceeds the threshold
+ortho_station_snapshots.csv,synthetic,Metadata,Always 1

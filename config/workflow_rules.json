@@ -1,0 +1,26 @@
+{
+  "_comment": "Machine-readable translation of data/original/ortho_service_dependencies.csv. Fictional workflow for a simulated orthopaedic clinic - not clinical guidance.",
+  "version": "1.0.0",
+  "source": "ortho_service_dependencies.csv (rules R01-R12, S01-S02)",
+  "stations": ["REGISTRATION", "XRAY", "PHLEBOTOMY", "ECG", "CONSULT", "CAST_ROOM", "DRESSING", "PROCEDURE", "PAYMENT", "PHARMACY"],
+  "step_aliases": {"REVIEW": "CONSULT"},
+  "phase_order": [
+    {"phase": "registration", "steps": ["REGISTRATION"], "rule": "R01"},
+    {"phase": "pre_consult_tests", "steps": ["XRAY", "PHLEBOTOMY", "ECG"], "rule": "R02-R05"},
+    {"phase": "consult", "steps": ["CONSULT"], "rule": "R06"},
+    {"phase": "post_consult_imaging", "steps": ["XRAY"], "rule": "R07"},
+    {"phase": "review", "steps": ["REVIEW"], "rule": "R07"},
+    {"phase": "treatment", "steps": ["CAST_ROOM", "DRESSING", "PROCEDURE"], "rule": "R08-R10"},
+    {"phase": "payment", "steps": ["PAYMENT"], "rule": "R11"},
+    {"phase": "pharmacy", "steps": ["PHARMACY"], "rule": "R12"}
+  ],
+  "flexible_groups": [
+    {"id": "pre_op_tests", "phase": "pre_consult_tests", "visit_types": ["pre_op"], "source": "R05 (explicit in dataset)"},
+    {"id": "pre_consult_tests", "phase": "pre_consult_tests", "visit_types": ["follow_up", "new"],
+     "source": "Team decision 2026-11-10: pre-consult X-ray and blood test are independent, so either order is permitted"}
+  ],
+  "safety": {
+    "consult_queue_order": "S01: clinician-assigned 'expedited' first, then appointment time. Routing never changes priority.",
+    "escalation": "S02: a patient flagged unwell is escalated to staff and is never auto-routed."
+  }
+}

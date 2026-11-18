@@ -1,0 +1,26 @@
+# Render blueprint for the Synapse Linker backend (FastAPI). Render > New > Blueprint > pick this repo.
+# Free plan: sleeps after 15 min idle (first request then takes about a minute) and forgets its
+# demo state on restart. Use the laptop backend for the live robot demo; this is the public showcase.
+services:
+  - type: web
+    name: synapse-linker-api
+    runtime: python
+    region: singapore
+    plan: free
+    buildCommand: >-
+      pip install -r requirements.txt &&
+      python -m ml.train_waiting &&
+      python -m ml.train_bottleneck &&
+      python -m ml.build_wait_profile
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: SYNAPSE_DEPLOY_TRAIN        # train only the selected model family (fits the 512 MB plan)
+        value: "1"
+      - key: SYNAPSE_DISABLE_LIVE_REPLAY # the full replay needs more memory; stored results are still shown
+        value: "1"
+      - key: SYNAPSE_MAP
+        value: config/table_map_60cm.json

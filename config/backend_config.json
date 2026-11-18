@@ -1,0 +1,28 @@
+{
+  "_comment": "Demo backend settings. 'background' values simulate the rest of the clinic (other patients, other departments) so the trained models see realistic inputs; they are scenario inputs shown on the dashboard, not predictions.",
+  "clinic_start": "10:00",
+  "day_of_week": 1,
+  "clock_speed": 1.0,
+  "auto_dispatch": true,
+  "tick_seconds": 0.5,
+  "refresh_every_s": 10,
+  "robots": {
+    "EDi-01": {"kind": "physical", "adapter": "simulation"},
+    "EDi-02": {"kind": "virtual", "adapter": "none"}
+  },
+  "_robot_adapter_note": "Set EDi-01 adapter to 'esp32' when the OjanBot firmware polls GET /robot/EDi-01/next-command.",
+  "doctors": ["DR01", "DR02"],
+  "consult": {"doctors_in_session": 7, "background_queue": 10, "booked_next_30min": 14, "doctor_delay_min": 0},
+  "clinic_background": {"consult_completions_last_15min": 6},
+  "station_background": {
+    "REGISTRATION": {"background_queue": 1, "recent_wait_hint": 1.0, "arrivals_hint": 3},
+    "XRAY":         {"background_queue": 3, "recent_wait_hint": 9.0, "arrivals_hint": 4},
+    "PHLEBOTOMY":   {"background_queue": 6, "recent_wait_hint": 12.0, "arrivals_hint": 12},
+    "ECG":          {"background_queue": 1, "recent_wait_hint": 10.0, "arrivals_hint": 1},
+    "CAST_ROOM":    {"background_queue": 0, "recent_wait_hint": null, "arrivals_hint": 1},
+    "DRESSING":     {"background_queue": 0, "recent_wait_hint": null, "arrivals_hint": 1},
+    "PROCEDURE":    {"background_queue": 0, "recent_wait_hint": null, "arrivals_hint": 0},
+    "PAYMENT":      {"background_queue": 4, "recent_wait_hint": 8.0, "arrivals_hint": 6},
+    "PHARMACY":     {"background_queue": 8, "recent_wait_hint": 15.0, "arrivals_hint": 12}
+  }
+}

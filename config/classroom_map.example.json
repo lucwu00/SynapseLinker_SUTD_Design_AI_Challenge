@@ -1,0 +1,39 @@
+{
+  "_WARNING": "EXAMPLE TAPE TRACK - replace the coordinates with your own measurements. The map describes the tape track you lay on the classroom floor, not the classroom itself.",
+  "units": "metres",
+  "frame": "Origin (0,0) at the START tape mark. +x along the main corridor tape toward Room C, +y toward the rooms. Measure every node from START with a tape measure.",
+  "start_node": "START",
+  "robot_speed_m_s": 0.15,
+  "obstacle_wait_s": 5,
+  "nodes": {
+    "START": {"x": 0.0, "y": 0.0,  "marker": "M0"},
+    "J1":    {"x": 1.0, "y": 0.0,  "marker": "M1"},
+    "J2":    {"x": 2.5, "y": 0.0,  "marker": "M2"},
+    "J3":    {"x": 4.0, "y": 0.0,  "marker": "M3"},
+    "J4":    {"x": 1.0, "y": -1.2, "marker": "M4"},
+    "J5":    {"x": 4.0, "y": -1.2, "marker": "M5"},
+    "N_A":   {"x": 1.0, "y": 1.0,  "marker": "RA"},
+    "N_B":   {"x": 2.5, "y": 1.0,  "marker": "RB"},
+    "N_C":   {"x": 4.0, "y": 1.0,  "marker": "RC"}
+  },
+  "edges": [
+    {"from": "START", "to": "J1"},
+    {"from": "J1", "to": "J2"}, {"from": "J2", "to": "J3"},
+    {"from": "J1", "to": "J4"}, {"from": "J4", "to": "J5"}, {"from": "J5", "to": "J3"},
+    {"from": "J1", "to": "N_A"}, {"from": "J2", "to": "N_B"}, {"from": "J3", "to": "N_C"}
+  ],
+  "restricted_nodes": [],
+  "rooms": {
+    "ROOM_A": {"node": "N_A", "station": "CONSULT", "label": "Consultation Room 1", "classroom_label": "Room A"},
+    "ROOM_B": {"node": "N_B", "station": "XRAY",    "label": "X-ray Room 1",        "classroom_label": "Room B"},
+    "ROOM_C": {"node": "N_C", "station": "XRAY",    "label": "X-ray Room 2",        "classroom_label": "Room C"}
+  },
+  "_layout": [
+    "      Room A        Room B        Room C",
+    "        |             |             |",
+    "START--J1------------J2------------J3",
+    "        |                           |",
+    "        J4-------------------------J5",
+    "Two ways from J1 to Rooms B and C: the top corridor, or the loop through J4-J5."
+  ]
+}

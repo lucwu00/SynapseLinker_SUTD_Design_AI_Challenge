@@ -1,0 +1,156 @@
+{
+ "_README": "60 x 60 cm demo table. Black tape loop with 4 cross marks. Coordinates in metres from the BOTTOM-LEFT table corner (the corner nearest the presenter, on their left). See docs/TABLE_SETUP.md and docs/table_layout_60cm.png.",
+ "units": "metres",
+ "frame": "Origin (0,0) = bottom-left corner of the 60 x 60 cm table top. +x to the right along the presenter's edge, +y away from the presenter.",
+ "track_type": "loop",
+ "table": {
+  "w": 0.6,
+  "h": 0.6
+ },
+ "track": {
+  "shape": "rounded_square",
+  "inset_m": 0.13,
+  "corner_radius_m": 0.07,
+  "tape_width_m": 0.019,
+  "mark_length_m": 0.06
+ },
+ "start_node": "START",
+ "start_facing": "K_BR",
+ "robot_speed_m_s": 0.06,
+ "obstacle_wait_s": 5,
+ "obstacle_detect_m": 0.06,
+ "nodes": {
+  "START": {
+   "x": 0.3,
+   "y": 0.13,
+   "marker": "M0",
+   "label": "Start / Registration"
+  },
+  "K_BR": {
+   "x": 0.4495,
+   "y": 0.1505,
+   "marker": null
+  },
+  "N_C": {
+   "x": 0.47,
+   "y": 0.3,
+   "marker": "MC"
+  },
+  "K_TR": {
+   "x": 0.4495,
+   "y": 0.4495,
+   "marker": null
+  },
+  "N_B": {
+   "x": 0.3,
+   "y": 0.47,
+   "marker": "MB"
+  },
+  "K_TL": {
+   "x": 0.1505,
+   "y": 0.4495,
+   "marker": null
+  },
+  "N_A": {
+   "x": 0.13,
+   "y": 0.3,
+   "marker": "MA"
+  },
+  "K_BL": {
+   "x": 0.1505,
+   "y": 0.1505,
+   "marker": null
+  }
+ },
+ "loop_order": [
+  "START",
+  "K_BR",
+  "N_C",
+  "K_TR",
+  "N_B",
+  "K_TL",
+  "N_A",
+  "K_BL"
+ ],
+ "edges": [
+  {
+   "from": "START",
+   "to": "K_BR",
+   "distance_m": 0.155
+  },
+  {
+   "from": "K_BR",
+   "to": "N_C",
+   "distance_m": 0.155
+  },
+  {
+   "from": "N_C",
+   "to": "K_TR",
+   "distance_m": 0.155
+  },
+  {
+   "from": "K_TR",
+   "to": "N_B",
+   "distance_m": 0.155
+  },
+  {
+   "from": "N_B",
+   "to": "K_TL",
+   "distance_m": 0.155
+  },
+  {
+   "from": "K_TL",
+   "to": "N_A",
+   "distance_m": 0.155
+  },
+  {
+   "from": "N_A",
+   "to": "K_BL",
+   "distance_m": 0.155
+  },
+  {
+   "from": "K_BL",
+   "to": "START",
+   "distance_m": 0.155
+  }
+ ],
+ "restricted_nodes": [],
+ "rooms": {
+  "ROOM_A": {
+   "node": "N_A",
+   "station": "CONSULT",
+   "label": "Consultation Room 1",
+   "classroom_label": "Left station",
+   "zone": {
+    "x": 0.25,
+    "y": 0.3
+   }
+  },
+  "ROOM_B": {
+   "node": "N_B",
+   "station": "XRAY",
+   "label": "X-ray Room 1",
+   "classroom_label": "Top station",
+   "zone": {
+    "x": 0.3,
+    "y": 0.35
+   }
+  },
+  "ROOM_C": {
+   "node": "N_C",
+   "station": "XRAY",
+   "label": "X-ray Room 2",
+   "classroom_label": "Right station",
+   "zone": {
+    "x": 0.35,
+    "y": 0.3
+   }
+  }
+ },
+ "demo_obstacle": {
+  "x": 0.41,
+  "y": 0.13,
+  "note": "Scene 9: small box (about 4 x 4 x 6 cm) on the tape 11 cm right of the START mark, where the bottom-right curve begins. The robot sees it before it leaves START."
+ },
+ "room_zone_note": "Put the 'person' block (about 4 x 4 x 8 cm) with its centre 12 cm inside the tape centre line, level with the room's mark."
+}

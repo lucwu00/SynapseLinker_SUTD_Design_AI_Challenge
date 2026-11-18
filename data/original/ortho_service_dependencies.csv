@@ -1,0 +1,15 @@
+rule_id,visit_type,referral_category,step,must_follow,probability,flexible_order_group,description
+R01,all,all,REGISTRATION,,1.0,,Every visit starts at registration
+R02,new,per category,XRAY,REGISTRATION,0.20-0.60,,"X-ray requested on referral, done before consult"
+R03,follow_up,per category,XRAY,REGISTRATION,0.10-0.85,,X-ray ordered at previous visit; consult needs the image
+R04,follow_up,all,PHLEBOTOMY,REGISTRATION,0.05,,Monitoring blood test before consult
+R05,pre_op,all,XRAY;PHLEBOTOMY;ECG,REGISTRATION,1.0,pre_op_tests,"All three before consult, ANY order (routing may choose)"
+R06,all,all,CONSULT,all pre-consult tests,1.0,,Consult requires pre-consult results
+R07,new,per category,XRAY -> REVIEW,CONSULT,0.45 (Fracture 0.80),,Doctor-ordered X-ray then same-day review with the same doctor
+R08,new/follow_up,"Fracture, Hand/Wrist",CAST_ROOM,CONSULT (and REVIEW if any),0.10-0.50,,Cast application/change/removal
+R09,follow_up,Post-op,DRESSING,CONSULT,0.55,,Wound dressing / suture removal
+R10,new/follow_up,"Knee/Hip, Shoulder/Elbow, Spine/Back",PROCEDURE,CONSULT,0.03-0.15,,Injection in procedure room
+R11,all,all,PAYMENT,all clinical steps,1.0,,Payment and next-appointment booking
+R12,all,all,PHARMACY,PAYMENT,0.10-0.55,,Medication collection (hospital-wide shared pharmacy)
+S01,all,all,CONSULT queue order,,,,"Clinician-assigned 'expedited' patients first, then appointment time"
+S02,all,all,ESCALATION,,,,Any patient flagged unwell is escalated to staff; never auto-routed

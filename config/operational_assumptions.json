@@ -1,0 +1,18 @@
+{
+  "_comment": "HYPOTHETICAL operational assumptions for the fictional orthopaedic clinic. Station capacity, service times, opening times, other-department demand and thresholds are read from data/original/ortho_stations.csv; the values below come from tools/generate_ortho_data.py (the simulator that produced the datasets). Used by the replay as background conditions (team approval 2026-11-10) and by the router for expected service and travel times. Not real hospital policy.",
+  "seed": 2026,
+  "travel_min": {"range": [1.5, 4.0], "expected": 2.75,
+                 "mobility_factor": {"independent": 1.0, "walking_aid": 1.6, "wheelchair": 1.4}},
+  "consult_expected_min": {"new": 22, "follow_up": 11, "pre_op": 13, "review": 6},
+  "consult_sd_min": {"new": 9, "follow_up": 6, "pre_op": 5, "review": 3},
+  "xray_extra_min_if_mobility_aid": 4,
+  "external_urgent_probability": {"XRAY": 0.12, "PHLEBOTOMY": 0.10, "ECG": 0.20},
+  "complex_case": {"PAYMENT": [0.10, 10, 6], "PHARMACY": [0.15, 8, 5], "XRAY": [0.05, 8, 4], "REGISTRATION": [0.05, 6, 3]},
+  "outages_per_station_per_day": 0.8,
+  "outage_minutes": [15, 60],
+  "lunch_breaks": {"stations": ["XRAY", "PHLEBOTOMY", "PAYMENT", "PHARMACY", "REGISTRATION"], "starts": ["12:00", "13:00"], "minutes": 60},
+  "pharmacy_prep_min": [15, 10],
+  "day_demand_factor": {"0": 1.05, "4": 0.97},
+  "consult_queue": "expedited first, then max(appointment time, join time - 30 min); REVIEW uses join time - 10 min",
+  "routing": {"hysteresis_min": 5.0, "hysteresis_fraction": 0.0, "lookahead_horizon_min": 30, "_tuned_on": "Aug-Sep 2025 replay (validation); margin 5 min had the best clinic-wide mean and fewest route changes"}
+}

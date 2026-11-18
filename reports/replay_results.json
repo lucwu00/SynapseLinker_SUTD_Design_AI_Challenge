@@ -1,0 +1,457 @@
+{
+ "period": "2025-10-01..2025-12-31",
+ "days": 64,
+ "visits": 13089,
+ "replay_validation": {
+  "replay_mean": 118.8,
+  "recorded_mean": 120.7,
+  "replay_median": 106.7,
+  "recorded_median": 107.0,
+  "per_visit_correlation": 0.885
+ },
+ "headline_pct_reduction_mean_total_time_all": 0.09,
+ "pct_reduction_mean_total_time_order_flexible": 2.99,
+ "summary": [
+  {
+   "policy": "fixed",
+   "group": "all visits",
+   "visits": 13089,
+   "mean_total_min": 118.84,
+   "median_total_min": 106.71,
+   "p90_total_min": 204.97,
+   "mean_wait_min": 72.92,
+   "route_changes": 0,
+   "incomplete": 0
+  },
+  {
+   "policy": "fixed",
+   "group": "order-flexible visits",
+   "visits": 1012,
+   "mean_total_min": 152.5,
+   "median_total_min": 144.61,
+   "p90_total_min": 234.68,
+   "mean_wait_min": 92.1,
+   "route_changes": 0,
+   "incomplete": 0
+  },
+  {
+   "policy": "shortest_queue",
+   "group": "all visits",
+   "visits": 13089,
+   "mean_total_min": 118.65,
+   "median_total_min": 107.17,
+   "p90_total_min": 204.09,
+   "mean_wait_min": 72.73,
+   "route_changes": 840,
+   "incomplete": 0
+  },
+  {
+   "policy": "shortest_queue",
+   "group": "order-flexible visits",
+   "visits": 1012,
+   "mean_total_min": 151.64,
+   "median_total_min": 141.81,
+   "p90_total_min": 236.83,
+   "mean_wait_min": 91.24,
+   "route_changes": 840,
+   "incomplete": 0
+  },
+  {
+   "policy": "synapse",
+   "group": "all visits",
+   "visits": 13089,
+   "mean_total_min": 118.74,
+   "median_total_min": 106.8,
+   "p90_total_min": 204.08,
+   "mean_wait_min": 72.82,
+   "route_changes": 382,
+   "incomplete": 0
+  },
+  {
+   "policy": "synapse",
+   "group": "order-flexible visits",
+   "visits": 1012,
+   "mean_total_min": 147.94,
+   "median_total_min": 141.43,
+   "p90_total_min": 228.28,
+   "mean_wait_min": 87.54,
+   "route_changes": 382,
+   "incomplete": 0
+  }
+ ],
+ "effects": [
+  {
+   "policy": "shortest_queue",
+   "group": "all visits",
+   "visits": 13089,
+   "baseline_mean_min": 118.84,
+   "policy_mean_min": 118.65,
+   "diff_min": -0.19,
+   "ci95": [
+    -0.41,
+    0.04
+   ],
+   "pct_reduction": 0.16
+  },
+  {
+   "policy": "shortest_queue",
+   "group": "order-flexible visits",
+   "visits": 1012,
+   "baseline_mean_min": 152.5,
+   "policy_mean_min": 151.64,
+   "diff_min": -0.86,
+   "ci95": [
+    -2.16,
+    0.45
+   ],
+   "pct_reduction": 0.56
+  },
+  {
+   "policy": "shortest_queue",
+   "group": "pre-op visits",
+   "visits": 779,
+   "baseline_mean_min": 152.79,
+   "policy_mean_min": 151.07,
+   "diff_min": -1.72,
+   "ci95": [
+    -3.44,
+    -0.12
+   ],
+   "pct_reduction": 1.13
+  },
+  {
+   "policy": "shortest_queue",
+   "group": "follow-up/new with 2 tests",
+   "visits": 233,
+   "baseline_mean_min": 151.54,
+   "policy_mean_min": 153.55,
+   "diff_min": 2.02,
+   "ci95": [
+    0.24,
+    4.06
+   ],
+   "pct_reduction": -1.33
+  },
+  {
+   "policy": "shortest_queue",
+   "group": "visits with no ordering choice",
+   "visits": 12077,
+   "baseline_mean_min": 116.02,
+   "policy_mean_min": 115.89,
+   "diff_min": -0.13,
+   "ci95": [
+    -0.41,
+    0.15
+   ],
+   "pct_reduction": 0.11
+  },
+  {
+   "policy": "synapse",
+   "group": "all visits",
+   "visits": 13089,
+   "baseline_mean_min": 118.84,
+   "policy_mean_min": 118.74,
+   "diff_min": -0.1,
+   "ci95": [
+    -0.31,
+    0.11
+   ],
+   "pct_reduction": 0.09
+  },
+  {
+   "policy": "synapse",
+   "group": "order-flexible visits",
+   "visits": 1012,
+   "baseline_mean_min": 152.5,
+   "policy_mean_min": 147.94,
+   "diff_min": -4.56,
+   "ci95": [
+    -5.9,
+    -3.31
+   ],
+   "pct_reduction": 2.99
+  },
+  {
+   "policy": "synapse",
+   "group": "pre-op visits",
+   "visits": 779,
+   "baseline_mean_min": 152.79,
+   "policy_mean_min": 146.77,
+   "diff_min": -6.02,
+   "ci95": [
+    -7.85,
+    -4.33
+   ],
+   "pct_reduction": 3.94
+  },
+  {
+   "policy": "synapse",
+   "group": "follow-up/new with 2 tests",
+   "visits": 233,
+   "baseline_mean_min": 151.54,
+   "policy_mean_min": 151.87,
+   "diff_min": 0.33,
+   "ci95": [
+    -0.61,
+    1.45
+   ],
+   "pct_reduction": -0.22
+  },
+  {
+   "policy": "synapse",
+   "group": "visits with no ordering choice",
+   "visits": 12077,
+   "baseline_mean_min": 116.02,
+   "policy_mean_min": 116.29,
+   "diff_min": 0.27,
+   "ci95": [
+    0.01,
+    0.54
+   ],
+   "pct_reduction": -0.23
+  }
+ ],
+ "stations": [
+  {
+   "station": "CAST_ROOM",
+   "mean_wait": 1.276,
+   "mean_queue": 0.037,
+   "bottleneck_rate": 0.004,
+   "utilisation": 0.313,
+   "policy": "fixed"
+  },
+  {
+   "station": "CONSULT",
+   "mean_wait": 23.564,
+   "mean_queue": null,
+   "bottleneck_rate": 0.072,
+   "utilisation": null,
+   "policy": "fixed"
+  },
+  {
+   "station": "DRESSING",
+   "mean_wait": 0.524,
+   "mean_queue": 0.017,
+   "bottleneck_rate": 0.001,
+   "utilisation": 0.2,
+   "policy": "fixed"
+  },
+  {
+   "station": "ECG",
+   "mean_wait": 8.586,
+   "mean_queue": 0.572,
+   "bottleneck_rate": 0.08,
+   "utilisation": 0.678,
+   "policy": "fixed"
+  },
+  {
+   "station": "PAYMENT",
+   "mean_wait": 16.395,
+   "mean_queue": 10.877,
+   "bottleneck_rate": 0.298,
+   "utilisation": 0.824,
+   "policy": "fixed"
+  },
+  {
+   "station": "PHARMACY",
+   "mean_wait": 24.411,
+   "mean_queue": 18.702,
+   "bottleneck_rate": 0.299,
+   "utilisation": 0.872,
+   "policy": "fixed"
+  },
+  {
+   "station": "PHLEBOTOMY",
+   "mean_wait": 12.376,
+   "mean_queue": 6.193,
+   "bottleneck_rate": 0.244,
+   "utilisation": 0.638,
+   "policy": "fixed"
+  },
+  {
+   "station": "PROCEDURE",
+   "mean_wait": 2.155,
+   "mean_queue": 0.036,
+   "bottleneck_rate": 0.001,
+   "utilisation": 0.269,
+   "policy": "fixed"
+  },
+  {
+   "station": "REGISTRATION",
+   "mean_wait": 1.298,
+   "mean_queue": 0.445,
+   "bottleneck_rate": 0.025,
+   "utilisation": 0.395,
+   "policy": "fixed"
+  },
+  {
+   "station": "XRAY",
+   "mean_wait": 27.232,
+   "mean_queue": 9.542,
+   "bottleneck_rate": 0.333,
+   "utilisation": 0.81,
+   "policy": "fixed"
+  },
+  {
+   "station": "CAST_ROOM",
+   "mean_wait": 1.276,
+   "mean_queue": 0.036,
+   "bottleneck_rate": 0.003,
+   "utilisation": 0.313,
+   "policy": "shortest_queue"
+  },
+  {
+   "station": "CONSULT",
+   "mean_wait": 23.597,
+   "mean_queue": null,
+   "bottleneck_rate": 0.072,
+   "utilisation": null,
+   "policy": "shortest_queue"
+  },
+  {
+   "station": "DRESSING",
+   "mean_wait": 0.483,
+   "mean_queue": 0.017,
+   "bottleneck_rate": 0.001,
+   "utilisation": 0.2,
+   "policy": "shortest_queue"
+  },
+  {
+   "station": "ECG",
+   "mean_wait": 8.727,
+   "mean_queue": 0.584,
+   "bottleneck_rate": 0.088,
+   "utilisation": 0.694,
+   "policy": "shortest_queue"
+  },
+  {
+   "station": "PAYMENT",
+   "mean_wait": 16.528,
+   "mean_queue": 10.962,
+   "bottleneck_rate": 0.301,
+   "utilisation": 0.824,
+   "policy": "shortest_queue"
+  },
+  {
+   "station": "PHARMACY",
+   "mean_wait": 24.496,
+   "mean_queue": 18.788,
+   "bottleneck_rate": 0.299,
+   "utilisation": 0.872,
+   "policy": "shortest_queue"
+  },
+  {
+   "station": "PHLEBOTOMY",
+   "mean_wait": 12.209,
+   "mean_queue": 6.103,
+   "bottleneck_rate": 0.243,
+   "utilisation": 0.643,
+   "policy": "shortest_queue"
+  },
+  {
+   "station": "PROCEDURE",
+   "mean_wait": 2.088,
+   "mean_queue": 0.033,
+   "bottleneck_rate": 0.001,
+   "utilisation": 0.269,
+   "policy": "shortest_queue"
+  },
+  {
+   "station": "REGISTRATION",
+   "mean_wait": 1.298,
+   "mean_queue": 0.445,
+   "bottleneck_rate": 0.025,
+   "utilisation": 0.395,
+   "policy": "shortest_queue"
+  },
+  {
+   "station": "XRAY",
+   "mean_wait": 26.679,
+   "mean_queue": 9.352,
+   "bottleneck_rate": 0.327,
+   "utilisation": 0.81,
+   "policy": "shortest_queue"
+  },
+  {
+   "station": "CAST_ROOM",
+   "mean_wait": 1.375,
+   "mean_queue": 0.038,
+   "bottleneck_rate": 0.005,
+   "utilisation": 0.313,
+   "policy": "synapse"
+  },
+  {
+   "station": "CONSULT",
+   "mean_wait": 23.579,
+   "mean_queue": null,
+   "bottleneck_rate": 0.071,
+   "utilisation": null,
+   "policy": "synapse"
+  },
+  {
+   "station": "DRESSING",
+   "mean_wait": 0.509,
+   "mean_queue": 0.019,
+   "bottleneck_rate": 0.001,
+   "utilisation": 0.2,
+   "policy": "synapse"
+  },
+  {
+   "station": "ECG",
+   "mean_wait": 7.973,
+   "mean_queue": 0.525,
+   "bottleneck_rate": 0.074,
+   "utilisation": 0.679,
+   "policy": "synapse"
+  },
+  {
+   "station": "PAYMENT",
+   "mean_wait": 16.507,
+   "mean_queue": 10.93,
+   "bottleneck_rate": 0.3,
+   "utilisation": 0.824,
+   "policy": "synapse"
+  },
+  {
+   "station": "PHARMACY",
+   "mean_wait": 24.411,
+   "mean_queue": 18.715,
+   "bottleneck_rate": 0.298,
+   "utilisation": 0.872,
+   "policy": "synapse"
+  },
+  {
+   "station": "PHLEBOTOMY",
+   "mean_wait": 12.176,
+   "mean_queue": 6.112,
+   "bottleneck_rate": 0.238,
+   "utilisation": 0.639,
+   "policy": "synapse"
+  },
+  {
+   "station": "PROCEDURE",
+   "mean_wait": 2.09,
+   "mean_queue": 0.034,
+   "bottleneck_rate": 0.001,
+   "utilisation": 0.269,
+   "policy": "synapse"
+  },
+  {
+   "station": "REGISTRATION",
+   "mean_wait": 1.298,
+   "mean_queue": 0.445,
+   "bottleneck_rate": 0.025,
+   "utilisation": 0.395,
+   "policy": "synapse"
+  },
+  {
+   "station": "XRAY",
+   "mean_wait": 27.28,
+   "mean_queue": 9.57,
+   "bottleneck_rate": 0.332,
+   "utilisation": 0.81,
+   "policy": "synapse"
+  }
+ ],
+ "note": "Synthetic data; replay re-simulates queues with identical arrivals, service durations and background demand for every policy. Not clinically validated."
+}

@@ -1,0 +1,12 @@
+model,params,split,PR_AUC,precision,recall,F1,brier,threshold,TP,FP,FN,TN
+Dummy (prior),{},val,0.1374,0.0,0.0,0.0,0.1185,0.5,0,0,2363,14837
+LogisticRegression,"{""C"": 0.1}",val,0.9168,0.8254,0.8362,0.8308,0.0513,0.7515,1976,418,387,14419
+LogisticRegression,"{""C"": 1.0}",val,0.9175,0.8206,0.846,0.8331,0.0511,0.7477,1999,437,364,14400
+RandomForest,"{""min_samples_leaf"": 5}",val,0.9412,0.8869,0.843,0.8644,0.0277,0.4504,1992,254,371,14583
+RandomForest,"{""min_samples_leaf"": 20}",val,0.9409,0.8663,0.8527,0.8595,0.0282,0.4038,2015,311,348,14526
+HistGradientBoosting,"{""learning_rate"": 0.05, ""max_leaf_nodes"": 31}",val,0.9406,0.8813,0.8421,0.8613,0.0279,0.4536,1990,268,373,14569
+HistGradientBoosting,"{""learning_rate"": 0.1, ""max_leaf_nodes"": 15}",val,0.9417,0.8894,0.8371,0.8624,0.0275,0.4785,1978,246,385,14591
+Dummy (prior),{},test,0.142,0.0,0.0,0.0,0.1219,0.5,0,0,3634,21966
+LogisticRegression,"{""C"": 1.0}",test,0.924,0.8339,0.8456,0.8397,0.0498,0.7477,3073,612,561,21354
+RandomForest,"{""min_samples_leaf"": 5}",test,0.9444,0.884,0.8451,0.8641,0.028,0.4504,3071,403,563,21563
+HistGradientBoosting,"{""learning_rate"": 0.1, ""max_leaf_nodes"": 15}",test,0.9454,0.8891,0.8409,0.8644,0.0275,0.4785,3056,381,578,21585

@@ -65,27 +65,41 @@
 #define MAX_SPEED         170
 #define KP                 38   // steering per unit of line error (error range -2..+2)
 #define KD                 60
-#define PIVOT_SPEED       115   // in-place turns
-#define PIVOT_90_MS       430   // >>> CALIBRATE time for a 90 degree pivot at PIVOT_SPEED (hw test, menu 'p')
-#define LEAVE_LINE_MS     160   // a "turn until the line" must first spend this long off the line
-#define PIVOT_TIMEOUT_MS 3000   // never spin longer than this - stop and report an error
-#define UTURN_MIN_MS  (PIVOT_90_MS * 13 / 10)   // a U-turn ignores lines seen before ~115 degrees
-#define TURN_MIN_MS   (PIVOT_90_MS / 2)         // a left/right turn ignores lines before ~45 degrees
-
-// Marks: short black bars across the line. A mark = at least MARK_MIN_SENSORS sensors black at once.
-#define MARK_MIN_SENSORS    4
-#define MARK_CONFIRM_READS  2   // consecutive readings (5 ms apart) to accept a mark
-#define MARK_COOLDOWN_MS  700   // ignore marks for this long after one was counted
-// After the sensors cross a mark, keep driving this long so the WHEELS (axle) stop over the mark.
-// = (distance from sensor bar to wheel axle) / (driving speed).  >>> CALIBRATE with hw test menu 'm'
-#define MARK_CENTER_MS    450
+#define CM_PER_S         14.0   // >>> CALIBRATE speed at BASE_SPEED on the line (hw test 'v'): used to know
+                                //     roughly how far it has driven, so bends are not mistaken for junctions
 #define LINE_LOST_MS      450   // no sensor on black for this long -> stop and report ERROR
+
+// ---------------------------------------------------------------- turning on the spot
+#define PIVOT_SPEED       115
+#define PIVOT_90_MS       430   // >>> CALIBRATE time for a 90 degree pivot at PIVOT_SPEED (hw test 'p')
+#define LEAVE_LINE_MS     160   // a "turn until the line" must first spend this long off the line
+#define PIVOT_TIMEOUT_MS 3000   // never spin longer than this
+// A turn only accepts the line inside an angle window, so it cannot lock onto the wrong tape:
+#define TURN_MIN_MS   (PIVOT_90_MS / 2)          // left/right: ignore lines before ~45 degrees
+#define TURN_MAX_MS   (PIVOT_90_MS * 17 / 10)    //             give up after ~150 degrees
+#define UTURN_MIN_MS  (PIVOT_90_MS * 13 / 10)    // U-turn:     ignore lines before ~115 degrees
+#define UTURN_MAX_MS  (PIVOT_90_MS * 27 / 10)    //             give up after ~240 degrees
+
+// ---------------------------------------------------------------- recognising tape features
+// Station = short bar ACROSS the line (tape on both sides). Junction = a branch on ONE side, or
+// the top of a T (tape on both sides, and no line straight ahead).
+#define SENSOR_AHEAD_CM   4.5   // >>> MEASURE distance from the sensor bar to the wheel axle
+#define FEATURE_CONFIRM     2   // readings (5 ms apart) that must look like a feature
+#define FEATURE_END_READS   3   // readings back to a plain line that end the feature
+// Ignore feature-like patterns until this share of the expected distance is driven:
+#define GATE_FRACTION_BAR     0.50   // stations / T-tops (a bend cannot light both sides, so this can be loose)
+#define GATE_FRACTION_BRANCH  0.70   // side branches (a bend CAN look like one; keep CM_PER_S calibrated)
+#define FEATURE_MAX_CM         4.0   // a real crossing is one tape width; longer = a bend, ignored
+// After the sensors reach a feature, keep driving this long so the WHEELS (axle) stop on it.
+// About SENSOR_AHEAD_CM / (0.75 * CM_PER_S) seconds.  >>> CALIBRATE with hw test 'm'
+#define MARK_CENTER_MS    450
+#define CHECK_LINE_AHEAD    1   // 1 = after stopping, check the line continues (station) or ends (top of a T)
 
 // ---------------------------------------------------------------- obstacle and room scan
 #define OBSTACLE_CM          8    // stop if something is closer than this in front while driving
 #define OBSTACLE_CONFIRM     3    // consecutive close readings needed (~70 ms apart)
 #define OBSTACLE_WAIT_MS  5000    // wait this long for it to clear before turning round
 #define CLEAR_CONFIRM        4    // consecutive far readings needed to call it cleared
-#define OCCUPIED_CM         11    // room scan: something closer than this = room occupied
+#define OCCUPIED_CM         10    // room scan: something closer than this = room occupied
 #define SCAN_MEASURE_MS    600    // how long to measure while facing the room
 #define US_MAX_CM           60    // ignore echoes beyond this (and timeouts)

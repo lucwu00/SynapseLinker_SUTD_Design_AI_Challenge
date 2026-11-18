@@ -75,34 +75,63 @@ def validate_map(m: dict):
             raise MapError(f"room {rid} -> unknown node {r['node']}")
         if r["node"] in restricted:
             raise MapError(f"room {rid} is inside a restricted area")
-    if m.get("track_type") == "loop":
-        order = m.get("loop_order") or []
-        if len(order) < 3 or set(order) - set(nodes):
-            raise MapError("loop track needs 'loop_order' listing at least 3 known nodes")
-        ek = {edge_key(e["from"], e["to"]) for e in m["edges"]}
-        for a, b in zip(order, order[1:] + order[:1]):
-            if edge_key(a, b) not in ek:
-                raise MapError(f"loop_order step {a}-{b} has no edge")
-        for rid, r in rooms.items():
-            if r["node"] not in order:
-                raise MapError(f"room {rid} is not on the loop")
-        if m.get("start_facing") and m["start_facing"] not in order:
-            raise MapError("start_facing must be a loop node")
+    for e in m["edges"]:
+        for v in e.get("via", []):
+            if not (isinstance(v, (list, tuple)) and len(v) == 2):
+                raise MapError(f"edge {e['from']}-{e['to']}: via points must be [x, y]")
+    if m.get("start_facing"):
+        ok = any({e["from"], e["to"]} == {m["start_node"], m["start_facing"]} for e in m["edges"])
+        if not ok:
+            raise MapError("start_facing must be a node next to start_node")
+    for nid, n in nodes.items():
+        if n.get("kind") not in (None, "station", "junction", "waypoint"):
+            raise MapError(f"node {nid}: kind must be station, junction or waypoint")
     # derived lookups
     m["station_rooms"] = {}
     for rid, r in rooms.items():
         m["station_rooms"].setdefault(r["station"], []).append(rid)
     m["stations"] = {st: rooms[rids[0]]["node"] for st, rids in m["station_rooms"].items()}
     m["node_room"] = {r["node"]: rid for rid, r in rooms.items()}
+    degree = {nid: 0 for nid in nodes}
+    for e in m["edges"]:
+        degree[e["from"]] += 1; degree[e["to"]] += 1
+    m["node_kind"] = {nid: n.get("kind") or ("junction" if degree[nid] >= 3 else
+                                             "station" if n.get("marker") else "waypoint")
+                      for nid, n in nodes.items()}
 
 
 def edge_key(a: str, b: str) -> tuple[str, str]:
     return tuple(sorted((a, b)))
 
 
+def _edge(m: dict, a: str, b: str) -> dict:
+    for e in m["edges"]:
+        if (e["from"], e["to"]) in ((a, b), (b, a)):
+            return e
+    raise MapError(f"no corridor {a}-{b}")
+
+
+def edge_points(m: dict, a: str, b: str) -> list[tuple[float, float]]:
+    """Tape centre line from node a to node b: the nodes plus any 'via' corner points, in travel order."""
+    e = _edge(m, a, b)
+    n = m["nodes"]
+    pts = [(n[e["from"]]["x"], n[e["from"]]["y"])] + [tuple(v) for v in e.get("via", [])] + \
+          [(n[e["to"]]["x"], n[e["to"]]["y"])]
+    return pts if e["from"] == a else pts[::-1]
+
+
 def edge_length(m: dict, e: dict) -> float:
-    a, b = m["nodes"][e["from"]], m["nodes"][e["to"]]
-    return float(e.get("distance_m") or math.dist((a["x"], a["y"]), (b["x"], b["y"])))
+    """Measured distance if given, else the polyline length with corners rounded to the track radius."""
+    if e.get("distance_m"):
+        return float(e["distance_m"])
+    pts = edge_points(m, e["from"], e["to"])
+    d = sum(math.dist(p, q) for p, q in zip(pts, pts[1:]))
+    r = float(m.get("track", {}).get("corner_radius_m", 0))
+    for p, q, s in zip(pts, pts[1:], pts[2:]):       # each rounded corner is shorter than the sharp one
+        a1 = math.atan2(q[1] - p[1], q[0] - p[0]); a2 = math.atan2(s[1] - q[1], s[0] - q[0])
+        phi = abs((a2 - a1 + math.pi) % (2 * math.pi) - math.pi)
+        d -= r * (2 * math.tan(phi / 2) - phi)
+    return d
 
 
 def to_graph(m: dict, blocked: set | None = None) -> nx.Graph:

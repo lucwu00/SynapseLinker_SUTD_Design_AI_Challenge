@@ -1,29 +1,26 @@
 import { useEffect, useState } from "react";
 import { api, LABEL } from "./api";
 
-/** Point at arc length `s` along a rounded-square loop that starts at the middle of the bottom side and runs
- *  counter-clockwise (the 60 x 60 cm table track). Returns metres in table coordinates. */
-function loopGeometry(track, table) {
-  const lo = track.inset_m, hi = table.w - track.inset_m, r = track.corner_radius_m, mid = (lo + hi) / 2;
-  const side = hi - lo - 2 * r, arc = (Math.PI * r) / 2;
-  const parts = [                       // [length, fn(t in 0..1) -> {x,y}]
-    [side / 2, (t) => ({ x: mid + t * side / 2, y: lo })],
-    [arc, (t) => ({ x: hi - r + r * Math.sin(t * Math.PI / 2), y: lo + r - r * Math.cos(t * Math.PI / 2) })],
-    [side, (t) => ({ x: hi, y: lo + r + t * side })],
-    [arc, (t) => ({ x: hi - r + r * Math.cos(t * Math.PI / 2), y: hi - r + r * Math.sin(t * Math.PI / 2) })],
-    [side, (t) => ({ x: hi - r - t * side, y: hi })],
-    [arc, (t) => ({ x: lo + r - r * Math.sin(t * Math.PI / 2), y: hi - r + r * Math.cos(t * Math.PI / 2) })],
-    [side, (t) => ({ x: lo, y: hi - r - t * side })],
-    [arc, (t) => ({ x: lo + r - r * Math.cos(t * Math.PI / 2), y: lo + r - r * Math.sin(t * Math.PI / 2) })],
-    [side / 2, (t) => ({ x: lo + r + t * side / 2, y: lo })],
-  ];
-  const total = parts.reduce((a, p) => a + p[0], 0);
-  const at = (s) => {
-    s = ((s % total) + total) % total;
-    for (const [len, f] of parts) { if (s <= len + 1e-9) return f(len ? s / len : 0); s -= len; }
-    return parts[0][1](0);
-  };
-  return { total, at };
+/** Tape centre line of a corridor: its two nodes plus any "via" corners, drawn with rounded corners
+ *  (radius r, metres). Returns an SVG path and the point halfway along. */
+function corridorPath(pts, r, px, py) {
+  const len = (p, q) => Math.hypot(q.x - p.x, q.y - p.y);
+  let d = `M${px(pts[0].x).toFixed(1)},${py(pts[0].y).toFixed(1)}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const p = pts[i - 1], c = pts[i], n = pts[i + 1];
+    const k1 = Math.min(r, len(p, c) / 2) / (len(p, c) || 1), k2 = Math.min(r, len(c, n) / 2) / (len(c, n) || 1);
+    const a = { x: c.x + (p.x - c.x) * k1, y: c.y + (p.y - c.y) * k1 }, b = { x: c.x + (n.x - c.x) * k2, y: c.y + (n.y - c.y) * k2 };
+    d += ` L${px(a.x).toFixed(1)},${py(a.y).toFixed(1)} Q${px(c.x).toFixed(1)},${py(c.y).toFixed(1)} ${px(b.x).toFixed(1)},${py(b.y).toFixed(1)}`;
+  }
+  const last = pts[pts.length - 1];
+  d += ` L${px(last.x).toFixed(1)},${py(last.y).toFixed(1)}`;
+  const segs = pts.slice(1).map((q, i) => len(pts[i], q));
+  let half = segs.reduce((x, y) => x + y, 0) / 2, mid = pts[0];
+  for (let i = 0; i < segs.length; i++) {
+    if (half <= segs[i]) { const f = half / (segs[i] || 1); mid = { x: pts[i].x + f * (pts[i + 1].x - pts[i].x), y: pts[i].y + f * (pts[i + 1].y - pts[i].y) }; break; }
+    half -= segs[i];
+  }
+  return { d, mid };
 }
 
 /** Live view of the classroom tape track: corridors, rooms, the robot and its route.
@@ -43,10 +40,10 @@ export default function FloorMap({ compact = false }) {
   if (err && !m) return <p className="error">{err}</p>;
   if (!m) return null;
 
-  const table = m.table && m.track && m.loop_order ? m.table : null;   // 60 x 60 cm demo table
+  const table = m.table || null;                     // tabletop demo (e.g. 60 x 60 cm)
   const xs = m.nodes.map((n) => n.x), ys = m.nodes.map((n) => n.y);
-  const pad = 0.75;
-  const [minX, maxX, minY, maxY] = table ? [0, table.w, 0, table.h]
+  const pad = 0.75, tp = 0.07;                        // tp: room cards may hang over the table edge
+  const [minX, maxX, minY, maxY] = table ? [-tp, table.w + tp, -tp, table.h + tp]
     : [Math.min(...xs) - pad, Math.max(...xs) + pad, Math.min(...ys) - pad, Math.max(...ys) + pad];
   const S = table ? 480 / table.w : 120, W = (maxX - minX) * S, H = (maxY - minY) * S;
   const px = (x) => (x - minX) * S, py = (y) => (maxY - y) * S;
@@ -56,19 +53,17 @@ export default function FloorMap({ compact = false }) {
   const onRoute = (a, b) => route.some((n, i) => (n === a && route[i + 1] === b) || (n === b && route[i + 1] === a));
 
   const canEdit = m.simulated_world && !compact;
-  // on the table, corridors follow the rounded tape instead of straight chords
-  let seg = null, nodeS = {};
-  if (table) {
-    const g = loopGeometry(m.track, table), step = g.total / m.loop_order.length;
-    m.loop_order.forEach((id, i) => { nodeS[id] = i * step; });
-    seg = (a, b) => {
-      let s0 = nodeS[a], s1 = nodeS[b];
-      if (Math.abs(s1 - s0) > step * 1.5) (s1 < s0 ? (s1 += g.total) : (s0 += g.total));
-      const pts = [];
-      for (let k = 0; k <= 12; k++) pts.push(g.at(s0 + (s1 - s0) * k / 12));
-      return { d: pts.map((p, k) => `${k ? "L" : "M"}${px(p.x).toFixed(1)},${py(p.y).toFixed(1)}`).join(" "), mid: pts[6] };
-    };
-  }
+  const R = m.track?.corner_radius_m || 0;
+  const seg = (e) => corridorPath([node[e.from], ...(e.via || []).map(([x, y]) => ({ x, y })), node[e.to]], R, px, py);
+  const kind = m.node_kind || {};
+  const tangent = (id) => {                           // tape direction at a node (for drawing its station bar)
+    const e = m.edges.find((x) => x.from === id || x.to === id);
+    if (!e) return { x: 1, y: 0 };
+    const pts = [node[e.from], ...(e.via || []).map(([x, y]) => ({ x, y })), node[e.to]];
+    const [p, q] = e.from === id ? [pts[0], pts[1]] : [pts[pts.length - 1], pts[pts.length - 2]];
+    const L = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+    return { x: (q.x - p.x) / L, y: (q.y - p.y) / L };
+  };
   const toggleObstacle = (e) =>
     api("/navigation/obstacles", "POST", { from_node: e.from, to_node: e.to, present: !e.obstacle }).then(setM).catch((x) => setErr(x.message));
   const room = (id, body) => api(`/rooms/${id}/status`, "POST", body).then(setM).catch((x) => setErr(x.message));
@@ -86,17 +81,15 @@ export default function FloorMap({ compact = false }) {
         <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Demo track with rooms and robot">
           {table && (
             <g>
-              <rect x="1" y="1" width={W - 2} height={H - 2} rx="4" className="tbl" />
-              <text x={W / 2} y={H - 8} className="tbl-t">Presenter side (60 cm)</text>
+              <rect x={px(0)} y={py(table.h)} width={table.w * S} height={table.h * S} rx="4" className="tbl" />
+              <text x={px(table.w / 2)} y={py(0) + 14} className="tbl-t">Presenter side ({Math.round(table.w * 100)} cm)</text>
             </g>
           )}
           {m.edges.map((e, i) => {
             const a = node[e.from], b = node[e.to];
             const cls = e.known_blocked ? "trk trk-blocked" : onRoute(e.from, e.to) ? "trk trk-route" : "trk";
-            const sg = seg && seg(e.from, e.to);
-            const mid = sg ? sg.mid : { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-            const shape = (c) => sg ? <path d={sg.d} className={c} fill="none" />
-              : <line x1={px(a.x)} y1={py(a.y)} x2={px(b.x)} y2={py(b.y)} className={c} />;
+            const sg = seg(e), mid = sg.mid;
+            const shape = (c) => <path d={sg.d} className={c} fill="none" />;
             return (
               <g key={i} onClick={() => canEdit && toggleObstacle(e)} className={canEdit ? "trk-g" : ""}>
                 {shape(cls)}
@@ -107,14 +100,12 @@ export default function FloorMap({ compact = false }) {
           })}
           {m.nodes.map((n) => {
             if (table) {
-              if (!n.marker) return null;               // corner waypoints are not taped
-              const c = { x: table.w / 2, y: table.h / 2 }, horiz = Math.abs(n.y - c.y) > Math.abs(n.x - c.x);
-              const L = (m.track.mark_length_m || 0.05) / 2;
+              if (kind[n.id] !== "station") return null;   // junctions are just where tape meets
+              const t = tangent(n.id), L = (m.track?.mark_length_m || 0.06) / 2;
               return (
                 <g key={n.id}>
-                  <line x1={px(horiz ? n.x : n.x - L)} y1={py(horiz ? n.y - L : n.y)} x2={px(horiz ? n.x : n.x + L)}
-                        y2={py(horiz ? n.y + L : n.y)} className="mark" />
-                  {n.id === m.nodes[0].id && <text x={px(n.x)} y={py(n.y - 0.045)} className="jn-label">Start</text>}
+                  <line x1={px(n.x - t.y * L)} y1={py(n.y + t.x * L)} x2={px(n.x + t.y * L)} y2={py(n.y - t.x * L)} className="mark" />
+                  {n.id === m.start_node && <text x={px(n.x)} y={py(n.y) + 34} className="jn-label">Start</text>}
                 </g>
               );
             }
@@ -129,13 +120,13 @@ export default function FloorMap({ compact = false }) {
             const n = node[r.node];
             const st = !r.staffed ? "closed" : r.occupied ? "occ" : "free";
             if (table) {             // card outside the loop beside the mark; dashed spot inside = where the "person" block goes
-              const c = table.w / 2, out = 0.065;
-              const ox = Math.abs(n.x - c) > Math.abs(n.y - c) ? Math.sign(n.x - c) : 0, oy = ox ? 0 : Math.sign(n.y - c);
+              const z = r.zone || { x: table.w / 2, y: table.h / 2 }, out = 0.075;
+              const ox = Math.abs(n.x - z.x) > Math.abs(n.y - z.y) ? Math.sign(n.x - z.x) : 0, oy = ox ? 0 : Math.sign(n.y - z.y);
               const cx = px(n.x + ox * out), cy = py(n.y + oy * out);
               return (
                 <g key={r.room_id}>
-                  <rect x={cx - 44} y={cy - 22} width="88" height="44" rx="6" className={`room room-${st}`} />
-                  <text x={cx} y={cy - 4} className="room-t">{r.classroom_label.replace(" station", "")}</text>
+                  <rect x={cx - 52} y={cy - 22} width="104" height="44" rx="6" className={`room room-${st}`} />
+                  <text x={cx} y={cy - 4} className="room-t">{r.classroom_label}</text>
                   <text x={cx} y={cy + 12} className="room-s">{r.label}</text>
                   {r.zone && <rect x={px(r.zone.x) - 12} y={py(r.zone.y) - 12} width="24" height="24" rx="3"
                                    className={`zone ${r.person_present ? "zone-on" : ""}`}><title>{`${r.label}: place the person block here`}</title></rect>}

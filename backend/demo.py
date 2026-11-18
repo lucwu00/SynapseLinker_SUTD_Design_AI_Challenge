@@ -187,35 +187,39 @@ def s8(svc):
 
 def s9(svc):
     """Starts from a clean clinic. Runs live: watch the floor map.
-    The robot is sent to the X-ray room furthest away (the nearer one is closed), and an obstacle is put on
-    the corridor just before it, so there is room to see it stop, wait, turn round and take the other way."""
+    The map's "demo.scene9" says which room the robot heads for and which corridor the trolley blocks;
+    without it, the robot goes to the X-ray room furthest away and the corridor before it is blocked."""
     svc.reset()
+    cfg = svc.planner.map.get("demo", {}).get("scene9")
     rooms = _xray_rooms_by_distance(svc)
-    target = rooms[-1]
-    for r in rooms[:-1]:
+    if cfg:
+        target, closed_rooms = cfg["room"], [r for r in cfg.get("close_rooms", [])]
+    else:
+        target, closed_rooms = rooms[-1], rooms[:-1]
+    for r in closed_rooms:
         svc.update_room(r, staffed=False)
     a = svc.adapters["EDi-01"]
-    here = svc.planner.node_of(a.get_robot_status().position)
-    plan = svc.planner.plan_to_node(here, svc.planner.room_node(target), "XRAY", svc.robot_heading.get("EDi-01"))
-    n = plan.nodes
-    if svc.planner.is_loop:      # table: trolley right in front of the robot as it sets off (clear of other marks)
-        edge = (n[0], n[1])
+    if cfg:
+        edge = tuple(cfg["edge"])
     else:
+        here = svc.planner.node_of(a.get_robot_status().position)
+        n = svc.planner.plan_to_node(here, svc.planner.room_node(target), "XRAY", svc.robot_heading.get("EDi-01")).nodes
         edge = (n[-3], n[-2]) if len(n) >= 4 else (n[0], n[1])
     svc.set_obstacle(*edge, True)
     svc.check_in({**XRAY_PATIENT, "appointment_time": svc.clock.to_dict()["clinic_time"], "robot_id": "EDi-01"})
     t = a.current
     wait = svc.planner.map.get("obstacle_wait_s", 5)
-    closed = ", ".join(_label(svc, r) for r in rooms[:-1]) or "none"
-    ob = svc.planner.map.get("demo_obstacle")
-    where = (f"ON THE TABLE: robot on START facing right, trolley box at {_cm(ob)}. " if _physical(svc) and ob else
+    closed = ", ".join(_label(svc, r) for r in closed_rooms) or "none"
+    box = (cfg or {}).get("box")
+    where = (f"ON THE TABLE: robot on START facing right, trolley box at {_cm(box)}. " if _physical(svc) and box else
              f"A trolley (simulated) is blocking the corridor {edge[0]}-{edge[1]}. ")
     return dict(scene=9, title="Corridor blocked, reroute",
-                narration=[f"Clean start. Closed for cleaning: {closed}. " + where + "The system does not know yet.",
+                narration=[f"Clean start. Closed rooms: {closed}. " + where + "The system does not know yet.",
                            f"EDi-01 sets off for {_label(svc, target)} on the shortest route "
                            f"{' -> '.join(t.route.nodes) if t else ''}.",
                            f"WATCH: it detects the obstacle and stops. If it is still there after {wait} s, the robot turns "
-                           "round on the line and reports the corridor blocked; the planner sends it the other way.",
+                           "round on the line and reports the corridor blocked; the planner sends it the other way, "
+                           "turning at the T-junctions into the alternative corridor.",
                            "Remove the obstacle within the wait time and the robot simply continues.",
-                           "To show a completely blocked track, block another corridor on the new route: there is no "
+                           "To show a completely blocked track, block the middle corridor too: there is no "
                            "way left, so the robot stops and staff are alerted."])

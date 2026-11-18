@@ -7,7 +7,8 @@
 //    f  both wheels forward 1 s     b  both backward 1 s
 //    L  left wheel forward 1 s      R  right wheel forward 1 s
 //    p  pivot left 90 degrees       P  pivot 4 x 90 (should end facing the same way)
-//    m  follow the line to the next mark and stop with the wheels on it
+//    m  follow the line to the next station bar and stop with the wheels on it
+//    v  follow the line for 2 s, then measure how far it went (sets CM_PER_S)
 //    x  stop everything
 //
 //  Lift the wheels off the table (or hold the robot) for f/b/L/R the first time.
@@ -47,9 +48,12 @@ static uint8_t lineBits() {
   return b;
 }
 static int countBits(uint8_t b) { int n = 0; for (int i = 0; i < 5; i++) n += (b >> i) & 1; return n; }
+static bool barLike(uint8_t b) { return (b & 0b00001) && (b & 0b10000); }        // tape at both outer sensors
 static void printBits(uint8_t b) {
   for (int i = 0; i < 5; i++) Serial.print((b >> i) & 1 ? "#" : ".");
-  Serial.printf("   (%d on black)%s\n", countBits(b), countBits(b) >= MARK_MIN_SENSORS ? "  <- MARK" : "");
+  const char* what = barLike(b) ? "  <- BAR (station / top of T)" :
+                     ((b & 1) && (b & 4)) ? "  <- branch LEFT" : ((b & 16) && (b & 4)) ? "  <- branch RIGHT" : "";
+  Serial.printf("   (%d on black)%s\n", countBits(b), what);
 }
 static float distanceCm() {
   digitalWrite(PIN_US_TRIG, LOW); delayMicroseconds(3);
@@ -72,15 +76,15 @@ static void runFor(int l, int r, uint32_t ms) {
 static void followToMark() {
   Serial.println("Following the line to the next mark (x or BOOT button = stop)...");
   int lastErr = 0, prevErr = 0;
-  bool prevMark = countBits(lineBits()) >= MARK_MIN_SENSORS;
+  bool prevMark = barLike(lineBits());
   int reads = 0;
   uint32_t lastSeen = millis(), t0 = millis();
   while (millis() - t0 < 15000) {
     if (stopRequested()) break;
     uint8_t b = lineBits(); int n = countBits(b);
-    bool isMark = n >= MARK_MIN_SENSORS;
+    bool isMark = barLike(b) || n >= 4;
     reads = isMark ? reads + 1 : 0;
-    if (reads >= MARK_CONFIRM_READS && !prevMark) {
+    if (reads >= FEATURE_CONFIRM && !prevMark) {
       Serial.printf("Mark seen at %lu ms - driving %d ms more (MARK_CENTER_MS)\n", millis() - t0, MARK_CENTER_MS);
       uint32_t c0 = millis();
       while (millis() - c0 < (uint32_t)MARK_CENTER_MS) {
@@ -104,6 +108,21 @@ static void followToMark() {
   }
   drive(0, 0);
   Serial.println("No mark within 15 s.");
+}
+
+static void speedCheck() {
+  Serial.println("Put the robot on a long straight piece of tape. It follows the line for 2 s.");
+  delay(1500);
+  int lastErr = 0; uint32_t t0 = millis();
+  while (millis() - t0 < 2000) {
+    if (stopRequested()) break;
+    uint8_t b = lineBits(); int n = countBits(b);
+    if (n) { int s = 0; for (int i = 0; i < 5; i++) if (b & (1 << i)) s += i - 2; lastErr = s * 10 / n; }
+    int corr = (KP * lastErr) / 10;
+    drive(BASE_SPEED + corr, BASE_SPEED - corr); delay(5);
+  }
+  drive(0, 0);
+  Serial.println("Measure how far the wheels moved (cm) and set CM_PER_S = that distance / 2.");
 }
 
 static void wifiCheck() {
@@ -139,7 +158,7 @@ void setup() {
   for (int i = 0; i < 5; i++) pinMode(LINE_PINS[i], INPUT);
   pinMode(PIN_US_TRIG, OUTPUT); pinMode(PIN_US_ECHO, INPUT);
   pinMode(PIN_ESTOP, INPUT_PULLUP);
-  Serial.println("\nOjanBot hardware test. Commands: l u w f b L R p P m x");
+  Serial.println("\nOjanBot hardware test. Commands: l u w f b L R p P m v x");
 }
 
 void loop() {
@@ -148,7 +167,8 @@ void loop() {
   if (c == '\n' || c == '\r') return;
   switch (c) {
     case 'l': {
-      Serial.println("D1..D5 (left..right). Slide the robot over the tape: centre only = '..#..'. Over a mark: 4-5 '#'.");
+      Serial.println("D1..D5 (left..right). Centred on the line = '..#..'. On a station bar or T-top: '#####'"
+                     " (at least both ends). On a side branch: '###..' or '..###'.");
       uint32_t t0 = millis(); while (millis() - t0 < 10000) { printBits(lineBits()); delay(150); }
       break;
     }
@@ -170,7 +190,8 @@ void loop() {
       for (int i = 0; i < 4; i++) { runFor(-PIVOT_SPEED, PIVOT_SPEED, PIVOT_90_MS); delay(400); }
       break;
     case 'm': followToMark(); break;
+    case 'v': speedCheck(); break;
     case 'x': drive(0, 0); Serial.println("Stopped."); break;
-    default: Serial.println("Commands: l u w f b L R p P m x");
+    default: Serial.println("Commands: l u w f b L R p P m v x");
   }
 }

@@ -8,18 +8,19 @@
 2. The backend must listen on all interfaces: `uvicorn backend.main:app --host 0.0.0.0 --port 8000`.
 3. Laptop and ESP32 on the same Wi-Fi (demo day: the laptop's Mobile Hotspot, laptop = 192.168.137.1).
 
-## Loop track (60 × 60 cm table)
+## Line-following routes (tabletop track)
 
-On the table map (`"track_type": "loop"`) the robot only ever follows the line in one of two directions, so each route is:
+The robot has no map. Each NAVIGATE / REROUTE lists the tape features it will cross:
 
 | Field | Meaning |
 |---|---|
-| `start_action` | `GO` (follow the line the way you face) or `U_TURN` (turn round first) |
-| `mark_actions` | One entry per tape mark you will cross, in order: `PASS` or `STOP` (last). Graph maps can also use `LEFT`/`RIGHT`/`U_TURN` |
-| `scan_side` | `LEFT` or `RIGHT`: the side the room is on when you stop |
+| `start_action` | `GO`, `LEFT`, `RIGHT` or `U_TURN` before following the line |
+| `features[]` | In crossing order. `t`: `S` station bar / `J` junction. `p`: expected sensor pattern, `C` tape on both sides (bar, or top of a T), `L`/`R` branch on one side. `a`: `PASS`, `LEFT`, `RIGHT`, `U_TURN`, `STOP` (last). `d`: taped cm from the previous feature (0 = unknown). `m`: stop as "missed" after this many cm |
+| `scan_side` | `LEFT` or `RIGHT`: the side the room is on when it stops |
 | `scan_room_on_arrival` | Turn 90° to `scan_side`, measure, turn back, report `room_scan` |
+| `mark_actions` | The actions only, for older firmware |
 
-After a reroute where the robot turned round **mid-corridor**, the first entry of `mark_actions` is the mark it is driving back towards (it will cross it again). If it turned round **on** the mark it started from (`on_mark: true`), that mark is not counted again.
+After a reroute where the robot turned round **mid-corridor**, the first feature is the one it is driving back towards (`d` = 0). If it turned round **on** the node it started from (`on_mark: true`), that node is not listed again.
 
 ## Firmware loop
 

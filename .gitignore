@@ -3,3 +3,6 @@ __pycache__/
 .pytest_cache/
 data/runtime/
 frontend/node_modules/
+firmware/sim/main.cpp
+firmware/sim/config.h
+firmware/sim/sim_bin

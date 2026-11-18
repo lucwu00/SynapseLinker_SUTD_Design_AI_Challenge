@@ -32,8 +32,9 @@ class Route:
     heading_from: str | None = None                           # node the robot is facing away from at the start
     mid_segment: bool = False                                 # robot starts between nodes (turned around mid-corridor)
     start_action: str = "GO"                                  # GO | U_TURN | LEFT | RIGHT before following the line
-    marks: list[dict] = field(default_factory=list)           # [{"node","marker","action"}] tape marks in crossing order
+    marks: list[dict] = field(default_factory=list)           # tape features in crossing order (see route_planner)
     scan_side: str = "LEFT"                                   # side of the track the destination room is on
+    shapes: list = field(default_factory=list)                # per edge: tape polyline [(x, y), ...] in travel order
 
     @property
     def mark_nodes(self) -> list[str]:
@@ -69,6 +70,10 @@ class NavTask:
                 "track_type": self.route.track_type if self.route else None,
                 "start_action": self.route.start_action if self.route else "GO",
                 "mark_actions": [m["action"] for m in self.route.marks] if self.route else [],
+                # per feature: t = S(tation)/J(unction), p = expected pattern C/L/R, a = action,
+                # d = taped cm from the previous feature (0 = unknown), m = give up after this many cm
+                "features": [{"t": m["kind"][0], "p": m["pattern"], "a": m["action"], "d": m["dist_cm"],
+                              "m": m["max_cm"]} for m in self.route.marks] if self.route else [],
                 "scan_side": self.route.scan_side if self.route else "LEFT"}
 
     def to_dict(self):

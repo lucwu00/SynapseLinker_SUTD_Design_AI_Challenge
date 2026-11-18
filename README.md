@@ -27,13 +27,13 @@ The product is designed around a Singapore public-hospital Orthopaedic Surgery s
 
 Not copied: real CGH clinic numbers, room names, policies or records.
 
-## Table demo (60 × 60 cm): rooms, obstacles, rerouting
+## Table demo (60 × 60 cm double loop): rooms, obstacles, rerouting
 
 See **`docs/TABLE_SETUP.md`** and `docs/table_layout_60cm.png`. In short:
-- A black tape loop 13 cm in from the table edges, with four marks: START (30, 13), Right station / X-ray Room 2 (47, 30), Top station / X-ray Room 1 (30, 47), Left station / Consultation Room 1 (13, 30), in cm from the bottom-left corner.
-- EDi-01 follows the loop, counts marks, stops at the destination, turns to scan the room and reports OCCUPIED/FREE. An occupied room makes the system re-guide the patient (scene 8).
-- An obstacle makes it stop and wait 5 s, then turn round and take the other way round the loop (scene 9). If both ways are blocked, staff are alerted.
-- Firmware: `firmware/README.md`. Hosting: `docs/DEPLOY.md` (Render + Vercel). A larger classroom floor track is still supported (`docs/CLASSROOM_SETUP.md`).
+- An outer tape rectangle 10 cm in from the table edges plus a middle corridor at y = 30 cm, giving two alternative loops joined by T-junctions at (10, 30) and (50, 30). Station bars: START (30, 10), Station 1 / X-ray Room 2 (50, 38), Station 2 / X-ray Room 1 (30, 50), Station 3 / Consultation Room 1 (10, 22), in cm from the bottom-left corner.
+- Navigation is a graph planner that knows which way the robot faces: it plans shortest routes with turn costs, gives turn instructions at junctions, and replans when a corridor is reported blocked. The robot recognises station bars and T-junctions by sensor pattern, expected order and distance driven.
+- An occupied room makes the system re-guide the patient (scene 8). An obstacle makes the robot stop, wait 5 s, turn round and take the alternative corridor (scene 9). If every way is blocked, staff are alerted.
+- The track is defined in `config/table_map_60cm.json`; swap in an exact physical map later without touching the ML or routing. Firmware: `firmware/README.md`. Hosting: `docs/DEPLOY.md`.
 
 ## Windows setup (once)
 
@@ -93,8 +93,8 @@ Scenes 8 and 9 start from a clean clinic and run in real time. Watch the "Demo t
 | 5 Robot drives | The navigation command is shown; the simulated robot arrives; the patient is QUEUED, not completed | Simulation adapter |
 | 6 Robot handover | The clinician orders an X-ray; EDi-01 takes another patient; EDi-02 continues ORTHO_001's journey | Shared database |
 | 7 Before/after result | Held-out replay results | Discrete-event simulation |
-| 8 Room occupied, re-guide | Someone is in the nearest X-ray room (right station). The robot arrives, scans it as occupied, checks room availability and re-guides to the other X-ray room (top) | Robot ultrasonic scan + rules |
-| 9 Corridor blocked, reroute | X-ray Room 2 is closed; a trolley sits just past START. The robot sees it, waits 5 s, turns round and goes the other way round the loop. Block the other side too to show "completely blocked → staff alerted" | Robot obstacle stop + planner + rules |
+| 8 Room occupied, re-guide | Someone is in the nearest X-ray room (Station 1). The robot arrives, scans it as occupied, checks room availability and re-guides to X-ray Room 1 (Station 2) | Robot ultrasonic scan + rules |
+| 9 Corridor blocked, reroute | A trolley blocks the lower-right corridor. The robot sees it, waits 5 s, turns round and takes the middle corridor (right turn, then left turn at the T-junctions) to Station 1. Block the middle and top corridors too to show "completely blocked → staff alerted" | Robot obstacle stop + direction-aware planner + rules |
 
 Screens:
 - **Wall display**: a dark command-centre layout with KPIs, a station table (predicted wait, wait trend, 30-minute risk), acknowledgeable alerts, a patient tracking board with an expandable routing decision and staff actions, the robots, a compact floor map and the event log.

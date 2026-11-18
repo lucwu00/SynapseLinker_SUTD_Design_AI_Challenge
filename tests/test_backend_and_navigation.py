@@ -287,7 +287,7 @@ def test_esp32_contract_and_timeout():
     assert "COMM_LOST" in ev and a.tasks["T1"].state == NavState.FAILED
 
 
-# ---------------------------------------------------------------- 60 x 60 cm table loop
+# ---------------------------------------------------------------- 60 x 60 cm double-loop table
 from navigation.map_loader import TABLE_MAP
 
 
@@ -295,46 +295,67 @@ def table_planner():
     return RoutePlanner(load_map(TABLE_MAP))
 
 
-def test_table_loop_routes_go_forward_and_count_marks():
-    rp = table_planner()
-    r = rp.plan_to_node("START", "N_C", "XRAY")                   # robot placed facing counter-clockwise
-    assert r.nodes == ["START", "K_BR", "N_C"] and r.start_action == "GO"
-    assert [m["action"] for m in r.marks] == ["STOP"] and r.scan_side == "LEFT"
-    r = rp.plan_to_node("START", "N_B", "XRAY")                   # tie both ways -> no U-turn
-    assert r.start_action == "GO" and [m["node"] for m in r.marks] == ["N_C", "N_B"]
-    r = rp.plan_to_node("N_C", "START", "X", heading_from="K_BR")  # behind it -> turn round
-    assert r.start_action == "U_TURN" and r.nodes == ["N_C", "K_BR", "START"] and r.scan_side == "RIGHT"
-    r = rp.plan_to_node("N_C", "N_A", "X", heading_from="K_BR")   # equal -> keep going
-    assert r.start_action == "GO" and [m["action"] for m in r.marks] == ["PASS", "STOP"]
+def feats(r):
+    return [(f["node"], f["pattern"], f["action"]) for f in r.marks]
 
 
-def test_table_loop_obstacle_turn_round_reroute():
+def test_double_loop_features_and_turns():
     rp = table_planner()
-    r = rp.plan_to_node("START", "N_B", "XRAY")
-    a = ESP32Adapter("EDi-01", on_event=lambda k, d: ev.append((k, d)), nodes=rp.map["nodes"])
+    assert rp.map["node_kind"]["J_L"] == "junction" and rp.map["node_kind"]["S1"] == "station"
+    r = rp.plan_to_node("START", "S1", "XRAY")                          # robot faces right at START
+    assert r.nodes == ["START", "J_R", "S1"] and r.start_action == "GO"
+    assert feats(r) == [("J_R", "L", "PASS"), ("S1", "C", "STOP")] and r.scan_side == "LEFT"
+    assert r.marks[0]["dist_cm"] == pytest.approx(36.6, abs=0.2)        # corner rounded to 8 cm radius
+    r = rp.plan_to_node("START", "S3", "CONSULT")                       # behind it -> turn round first
+    assert r.start_action == "U_TURN" and feats(r) == [("S3", "C", "STOP")] and r.scan_side == "RIGHT"
+    r = rp.plan_to_node("S1", "S3", "CONSULT", heading_from="J_R")      # over the top, past the left T
+    assert r.nodes == ["S1", "S2", "J_L", "S3"] and feats(r)[1] == ("J_L", "L", "PASS")
+
+
+def test_double_loop_blocked_uses_middle_corridor():
+    rp = table_planner()
     ev = []
-    a.navigate("P", "XRAY", "T1", r)
-    a.handle_status({"task_id": "T1", "event": "PATH_BLOCKED", "marks_passed": 1, "turned_around": True})
+    a = ESP32Adapter("EDi-01", on_event=lambda k, d: ev.append((k, d)), nodes=rp.map["nodes"])
+    a.navigate("P", "XRAY", "T1", rp.plan_to_node("START", "S1", "XRAY"))
+    a.handle_status({"task_id": "T1", "event": "PATH_BLOCKED", "marks_passed": 0, "turned_around": True})
     d = [d for k, d in ev if k == "PATH_BLOCKED"][0]
-    assert d["edge"] == ["N_C", "K_TR"] and d["heading_from"] == "K_TR" and d["mid_segment"]
+    assert d["edge"] == ["START", "J_R"] and d["mid_segment"]
     rp.block(*d["edge"])
-    r2 = rp.plan_to_node(d["at_node"], "N_B", "XRAY", heading_from=d["heading_from"], mid_segment=True)
-    assert r2.start_action == "GO" and r2.nodes[:2] == ["N_C", "K_BR"]
-    assert [m["node"] for m in r2.marks] == ["N_C", "START", "N_A", "N_B"]   # it crosses N_C again first
-    assert r2.marks[-1]["action"] == "STOP" and r2.scan_side == "RIGHT"   # clockwise now
-    rp.block("K_TL", "N_A")
+    r = rp.plan_to_node("START", "S1", "XRAY", heading_from=d["heading_from"], mid_segment=True)
+    assert r.nodes == ["START", "S3", "J_L", "J_R", "S1"] and r.start_action == "GO"
+    assert feats(r) == [("START", "C", "PASS"), ("S3", "C", "PASS"), ("J_L", "R", "RIGHT"),
+                        ("J_R", "C", "LEFT"), ("S1", "C", "STOP")]
+    assert r.marks[0]["dist_cm"] == 0                                   # unknown: turned round mid-corridor
+    rp.block("J_L", "J_R")                                              # middle corridor too -> over the top
+    r = rp.plan_to_node("START", "S1", "XRAY", heading_from="J_R", mid_segment=True)
+    assert r.nodes == ["START", "S3", "J_L", "S2", "S1"] and feats(r)[2] == ("J_L", "R", "PASS")
+    rp.block("S2", "J_L")
     with pytest.raises(MapError):
-        rp.plan_to_node("N_C", "N_B", "XRAY", heading_from="K_TR", mid_segment=True)
+        rp.plan_to_node("START", "S1", "XRAY", heading_from="J_R", mid_segment=True)
+
+
+def test_blocked_before_leaving_start_mark():
+    rp = table_planner()
+    ev = []
+    a = ESP32Adapter("EDi-01", on_event=lambda k, d: ev.append((k, d)), nodes=rp.map["nodes"])
+    a.navigate("P", "XRAY", "T1", rp.plan_to_node("START", "S1", "XRAY"))
+    a.handle_status({"task_id": "T1", "event": "PATH_BLOCKED", "marks_passed": 0, "turned_around": True, "on_mark": True})
+    d = [d for k, d in ev if k == "PATH_BLOCKED"][0]
+    assert not d["mid_segment"]
+    rp.block(*d["edge"])
+    r = rp.plan_to_node("START", "S1", "XRAY", heading_from=d["heading_from"], mid_segment=d["mid_segment"])
+    assert r.start_action == "GO" and feats(r)[0] == ("S3", "C", "PASS")   # START not counted again
 
 
 def test_table_command_contract():
     rp = table_planner()
     a = ESP32Adapter("EDi-01", nodes=rp.map["nodes"])
-    r = rp.plan_to_node("START", "N_C", "XRAY"); r.room_id = "ROOM_C"
+    r = rp.plan_to_node("START", "S1", "XRAY"); r.room_id = "ROOM_C"
     a.navigate("P", "XRAY", "T1", r)
     c = a.poll_command()
-    assert c["track_type"] == "loop" and c["start_action"] == "GO" and c["mark_actions"] == ["STOP"]
-    assert c["scan_room_on_arrival"] and c["scan_side"] == "LEFT"
+    assert c["start_action"] == "GO" and c["scan_room_on_arrival"] and c["scan_side"] == "LEFT"
+    assert [(f["t"], f["p"], f["a"]) for f in c["features"]] == [("J", "L", "PASS"), ("S", "C", "STOP")]
+    assert c["features"][1]["d"] == 8.0 and c["features"][1]["m"] == 16.0
 
 
 @pytest.fixture
@@ -353,26 +374,11 @@ def test_table_scenes_8_and_9(table_svc):
     _drive(svc)
     p = svc._patient("ORTHO_201")
     assert p["status"] == "QUEUED" and p["assigned_room"] == "ROOM_B"
-    assert svc.robot_heading["EDi-01"] == "K_TR"                  # arrived at the top going counter-clockwise
+    assert svc.robot_heading["EDi-01"] == "S1"
     demo.scene(svc, 9)
     _drive(svc)
     p = svc._patient("ORTHO_201")
-    assert p["status"] == "QUEUED" and p["assigned_room"] == "ROOM_B"
+    assert p["status"] == "QUEUED" and p["assigned_room"] == "ROOM_C"
+    assert ("J_R", "START") in svc.planner.blocked or ("START", "J_R") in svc.planner.blocked
     types = [e["type"] for e in svc.db.query("SELECT type FROM events")]
     assert "CORRIDOR_BLOCKED" in types and "REROUTED" in types
-
-
-def test_esp32_blocked_before_leaving_mark():
-    rp = table_planner()
-    ev = []
-    a = ESP32Adapter("EDi-01", on_event=lambda k, d: ev.append((k, d)), nodes=rp.map["nodes"])
-    a.navigate("P", "XRAY", "T1", rp.plan_to_node("START", "N_B", "XRAY"))
-    a.handle_status({"task_id": "T1", "event": "PATH_BLOCKED", "marks_passed": 0, "turned_around": True, "on_mark": True})
-    d = [d for k, d in ev if k == "PATH_BLOCKED"][0]
-    assert d["edge"] == ["START", "K_BR"] and not d["mid_segment"]
-    rp.block(*d["edge"])
-    r = rp.plan_to_node("START", "N_B", "XRAY", heading_from=d["heading_from"], mid_segment=d["mid_segment"])
-    assert r.start_action == "GO" and [m["node"] for m in r.marks] == ["N_A", "N_B"]   # START not counted again
-    a.reroute("T1", r)
-    a.handle_status({"task_id": "T1", "event": "PATH_BLOCKED", "marks_passed": 0, "turned_around": True, "on_mark": True})
-    assert ev[-1][0] == "TRAPPED" or ev[-1][0] == "PATH_BLOCKED"

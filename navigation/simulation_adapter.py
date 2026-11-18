@@ -12,6 +12,7 @@ Behaviour mirrors what the physical robot is expected to do on the tape track:
 backend only learns about them through the robot's reports, as it would with real hardware.
 """
 from __future__ import annotations
+import math
 import time
 from typing import Callable
 
@@ -68,10 +69,19 @@ class SimulationAdapter(NavigationAdapter):
         if t and t.route and t.route.edge_lengths and t.state in (*ACTIVE_STATES, NavState.EMERGENCY_STOP):
             i = self._edge_index()
             cum = self._cum(t.route)
-            a, b = self.nodes.get(t.route.nodes[i]), self.nodes.get(t.route.nodes[i + 1])
-            if a and b:
-                f = (self.travelled - cum[i]) / max(cum[i + 1] - cum[i], 1e-9)
-                return {"x": a["x"] + f * (b["x"] - a["x"]), "y": a["y"] + f * (b["y"] - a["y"])}
+            f = min(max((self.travelled - cum[i]) / max(cum[i + 1] - cum[i], 1e-9), 0.0), 1.0)
+            pts = t.route.shapes[i] if t.route.shapes and i < len(t.route.shapes) else None
+            if not pts:
+                a, b = self.nodes.get(t.route.nodes[i]), self.nodes.get(t.route.nodes[i + 1])
+                pts = [(a["x"], a["y"]), (b["x"], b["y"])] if a and b else None
+            if pts:                                   # walk the same fraction along the tape polyline
+                segs = [math.dist(p, q) for p, q in zip(pts, pts[1:])]
+                left = f * sum(segs)
+                for k, ((p, q), L) in enumerate(zip(zip(pts, pts[1:]), segs)):
+                    if left <= L or k == len(segs) - 1:
+                        u = left / L if L else 0
+                        return {"x": p[0] + u * (q[0] - p[0]), "y": p[1] + u * (q[1] - p[1])}
+                    left -= L
         n = self.nodes.get(self.status.position)
         return {"x": n["x"], "y": n["y"]} if n else None
 

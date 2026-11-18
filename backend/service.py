@@ -929,10 +929,10 @@ class SynapseService:
         return dict(
             path=Path(m["_path"]).name, example=bool(m.get("_WARNING")), units=m["units"], frame=m["frame"],
             track_type=m.get("track_type", "graph"), table=m.get("table"), track=m.get("track"),
-            loop_order=m.get("loop_order"),
+            node_kind=m.get("node_kind"), start_node=m["start_node"],
             demo_obstacle=m.get("demo_obstacle"),
             nodes=[dict(id=k, **v) for k, v in m["nodes"].items()],
-            edges=[dict(**{"from": e["from"], "to": e["to"]},
+            edges=[dict(**{"from": e["from"], "to": e["to"]}, via=e.get("via", []),
                         known_blocked=edge_key(e["from"], e["to"]) in self.planner.blocked,
                         obstacle=edge_key(e["from"], e["to"]) in self.world["obstacles"]) for e in m["edges"]],
             rooms=[dict(room_id=k, node=v["node"], station=v["station"], label=v["label"], zone=v.get("zone"),

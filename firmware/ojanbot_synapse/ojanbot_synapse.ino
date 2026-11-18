@@ -30,7 +30,7 @@
 #include "config.h"
 
 // Stop with a clear message if this folder still has an old config.h next to a newer sketch.
-#if !defined(FEATURE_CONFIRM) || !defined(SENSOR_AHEAD_CM) || !defined(PIN_LINE_D5)
+#if !defined(FEATURE_CONFIRM) || !defined(SENSOR_AHEAD_CM) || !defined(PIN_LINE_D5) || !defined(LINE_MODE)
 #error "config.h is out of date: copy firmware/ojanbot_synapse/config.h from the repo into this sketch's folder"
 #endif
 
@@ -239,11 +239,25 @@ static void stopMotors() { drive(0, 0); }
 //  SENSORS
 // ============================================================================
 static const int LINE_PINS[5] = {PIN_LINE_D1, PIN_LINE_D2, PIN_LINE_D3, PIN_LINE_D4, PIN_LINE_D5};
+static int anaErr = 0;                       // analog mode: line position, -20 (left) .. +20 (right)
 static uint8_t lineBits() {                  // bit i = sensor D(i+1) over black
+#if LINE_MODE == LINE_MODE_ANALOG
+  // Maker Line AN: < 10% Vcc no line, 10-90% line position left..right, > 90% all sensors (bar / top of T).
+  // Turned into the same 5-bit picture: 00000, a single bit at the line position, or 11111.
+  float v = analogRead(PIN_LINE_AN) / 4095.0f;
+  if (v < AN_NO_LINE) return 0;
+  if (v > AN_CROSS) return 0b11111;
+  float p = (v - 0.5f) / 0.4f;               // -1 .. +1
+  p = constrain(p, -1.0f, 1.0f);
+  anaErr = (int)(p * 20);
+  return 1 << (int)lroundf(2 + 2 * p);
+#else
   uint8_t b = 0;
   for (int i = 0; i < 5; i++) if ((digitalRead(LINE_PINS[i]) == HIGH) == (LINE_ACTIVE_HIGH == 1)) b |= 1 << i;
   return b;
+#endif
 }
+#define ANALOG_LINE (LINE_MODE == LINE_MODE_ANALOG)
 static int countBits(uint8_t b) { int n = 0; for (int i = 0; i < 5; i++) n += (b >> i) & 1; return n; }
 static bool centreOn(uint8_t b) { return b & 0b00100; }
 static bool lineAhead(uint8_t b) { return b & 0b01110; }
@@ -291,6 +305,7 @@ static bool inFeature = false;
 static uint8_t featReads = 0, endReads = 0, featUnion = 0;
 static uint32_t featStart = 0;
 static float featStartCm = 0;
+static float blockedAtCm = -1;               // how far past the last node it was when it turned round
 
 static void setWheels(int l, int r) { curL = l; curR = r; drive(l, r); }
 static void halt() { curL = curR = 0; stopMotors(); }
@@ -347,6 +362,9 @@ static void startRoute(const Command& c) {
   nFeats = c.nMarks; memcpy(feats, c.marks, sizeof(Feature) * nFeats);
   passed = 0; startAct = c.startAct; scanReq = c.scan; scanLeft = c.scanLeft; lastErr = prevErr = 0;
   travelled = 0;
+  // After turning round mid-corridor the backend cannot know how far back the node is; the robot does.
+  if (nFeats && feats[0].distCm <= 0 && blockedAtCm > 0) feats[0].distCm = blockedAtCm;
+  blockedAtCm = -1;
   report("ACK", task);
   if (nFeats == 0) {                         // already at the destination
     if (scanReq) { enter(SCAN_OUT); } else { report("ARRIVED", task); enter(ARRIVED); }
@@ -394,6 +412,15 @@ static char patternOf(uint8_t u) {
 
 // Decide what to do with a finished crossing. Returns false if it stopped with a fault.
 static bool onCrossing(char seen, float lengthCm) {
+#if ANALOG_LINE
+  // Side branches cannot be seen on the analog wire; a PASS one that is still pending when the next
+  // bar arrives has simply been driven past.
+  while (seen == 'C' && passed + 1 < nFeats && feats[passed].pattern != 'C' &&
+         (feats[passed].act == A_PASS || feats[passed].act == A_GO)) {
+    Serial.printf("[feature] %u/%u junction passed (by distance)\n", passed + 1, nFeats);
+    passed++;
+  }
+#endif
   const Feature& f = feats[passed];
   if (lengthCm > FEATURE_MAX_CM) {           // tape lasted too long to be a crossing: a bend
     Serial.printf("[feature] ignored %c over %.1f cm (bend)\n", seen, lengthCm);
@@ -428,11 +455,33 @@ static void followLine(bool detect, bool checkObstacle) {
   uint8_t b = lineBits();
   int n = countBits(b);
 
+#if ANALOG_LINE
+  bool holdSteer = false;
+  if (detect && passed < nFeats && feats[passed].pattern != 'C' && !inFeature) {
+    // Side branch: the analog wire cannot show it, so go by distance from the last bar.
+    const Feature& f = feats[passed];
+    float reach = f.distCm - SENSOR_AHEAD_CM;           // sensors over the junction
+    holdSteer = fabsf(travelled - reach) < 3.0f;          // the branch tape would pull the steering
+    if (f.act == A_PASS || f.act == A_GO) {
+      if (travelled >= reach) {
+        Serial.printf("[feature] %u/%u junction passed (by distance)\n", passed + 1, nFeats);
+        passed++; travelled -= f.distCm;
+      }
+    } else if (travelled >= f.distCm) {                 // wheels over the junction: turn
+      Serial.printf("[feature] %u/%u junction %s (by distance)\n", passed + 1, nFeats,
+                    f.act == A_LEFT ? "LEFT" : f.act == A_RIGHT ? "RIGHT" : "U_TURN");
+      passed++; pendingAct = f.act; travelled = 0; halt(); enter(TURN_AT_NODE); return;
+    }
+  }
+#endif
   if (detect && passed < nFeats) {
     const Feature& f = feats[passed];
     // the sensors reach the node when the axle is SENSOR_AHEAD_CM short of it
     float frac = f.pattern == 'C' ? GATE_FRACTION_BAR : GATE_FRACTION_BRANCH;
     float gate = f.distCm > 0 ? f.distCm * frac - SENSOR_AHEAD_CM : -1e9f;
+#if ANALOG_LINE
+    gate = -1e9f;      // on the AN wire only a bar / T-top reads "all on", so no bend can look like one
+#endif
     bool like = featureLike(b);
     if (!inFeature) {
       if (like && travelled >= gate) {
@@ -440,7 +489,11 @@ static void followLine(bool detect, bool checkObstacle) {
           inFeature = true; featStart = t; featStartCm = travelled; featUnion = b; endReads = 0;
         }
       } else featReads = 0;
-      if (!inFeature && f.maxCm > 0 && travelled > f.maxCm) {
+      float maxCm = f.maxCm;
+#if ANALOG_LINE
+      maxCm = maxCm * 1.25f + 4;  // distances after a junction passed by dead reckoning are less certain
+#endif
+      if (!inFeature && f.maxCm > 0 && travelled > maxCm) {
         char m[60]; snprintf(m, sizeof m, "Missed feature #%u (drove %.0f cm)", passed + 1, travelled);
         fault(m); return;
       }
@@ -471,9 +524,13 @@ static void followLine(bool detect, bool checkObstacle) {
   } else {
     lastLineSeen = t;
     if (!featureLike(b)) {                   // on a feature the position is meaningless: keep steering
+#if ANALOG_LINE
+      if (!holdSteer) lastErr = anaErr;
+#else
       int sum = 0;
       for (int i = 0; i < 5; i++) if (b & (1 << i)) sum += (i - 2);
       lastErr = (sum * 10) / n;              // -20..+20 (tenths)
+#endif
     }
   }
   int corr = (KP * lastErr + KD * (lastErr - prevErr)) / 10;
@@ -554,6 +611,7 @@ static void controlStep() {
 
     case TURN_AROUND:
       if (pivotToLine(1, UTURN_MIN_MS, UTURN_MAX_MS)) {
+        blockedAtCm = blockedAtStart ? -1 : max(travelled, 0.0f);
         report("PATH_BLOCKED", task, passed, "", true,
                blockedAtStart ? "Blocked before leaving the node; turned round" : "Obstacle did not clear; turned round",
                blockedAtStart);
@@ -592,7 +650,11 @@ void setup() {
   delay(200);
   Serial.println("\nSynapse Linker EDi-01 firmware");
   motorsInit(); stopMotors();
+#if ANALOG_LINE
+  pinMode(PIN_LINE_AN, INPUT);
+#else
   for (int i = 0; i < 5; i++) pinMode(LINE_PINS[i], INPUT);
+#endif
   pinMode(PIN_US_TRIG, OUTPUT); pinMode(PIN_US_ECHO, INPUT);
   pinMode(PIN_ESTOP, INPUT_PULLUP);
 #if PIN_LED >= 0

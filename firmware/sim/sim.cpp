@@ -44,6 +44,13 @@ bool black(double x,double y){
     if (along<TW/2 && across<MARKL/2) return true; }
   return false;
 }
+static bool sensorBlack(int i){ double lat=(2-i)*PITCH;
+  double sx=rx+DS*cos(th)-lat*sin(th), sy=ry+DS*sin(th)+lat*cos(th); return black(sx,sy); }
+int analogRead(int){            // Maker Line AN: <10% none, 10-90% position left..right, >90% all on
+  int n=0; double sum=0; for(int i=0;i<5;i++) if(sensorBlack(i)){n++; sum+=i;}
+  double v = n==0 ? 0.03 : n==5 ? 0.97 : 0.5+0.4*((sum/n)-2)/2;
+  return (int)(v*4095);
+}
 int digitalRead(int p){
   if (p==PIN_ESTOP) return bootButton ? 0 : 1;
   for(int i=0;i<5;i++) if(LINE_PINS[i]==p){ double lat=(2-i)*PITCH; // D1 leftmost

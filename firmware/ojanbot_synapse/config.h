@@ -43,7 +43,20 @@
 #define PWM_FREQ_HZ   20000
 #define PWM_BITS      8                        // duty 0..255
 
-// ---------------------------------------------------------------- Cytron Maker Line (5 digital outputs)
+// ---------------------------------------------------------------- Cytron Maker Line
+// Two ways to wire it:
+//   LINE_MODE_ANALOG : the kit's single AN wire (no rewiring). Stations and T-tops are seen directly
+//                      (all sensors on); side branches are found by distance from the last station bar,
+//                      so CM_PER_S must be calibrated (hw test 'v').
+//   LINE_MODE_DIGITAL: five wires D1-D5. Also sees side branches directly (more robust).
+#define LINE_MODE_DIGITAL 1
+#define LINE_MODE_ANALOG  2
+#define LINE_MODE   LINE_MODE_ANALOG
+#define PIN_LINE_AN  36                        // >>> CHECK: hw test 'a' finds the pin the AN wire is on
+#define AN_NO_LINE  0.10                       // below 10% of 3.3 V = no line (Maker Line datasheet)
+#define AN_CROSS    0.90                       // above 90% = all sensors on (station bar / top of a T)
+
+// Digital wiring (only used with LINE_MODE_DIGITAL):
 // The robot needs the 5 DIGITAL outputs D1-D5 (not the single AN analog output): it has to see
 // which side the tape is on to tell station bars from junctions. Wiring: docs/TABLE_SETUP.md section 3.
 // Power the Maker Line from 3.3 V so D1-D5 swing 0-3.3 V (ESP32-safe).

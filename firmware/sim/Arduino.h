@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <string>
 #include <algorithm>
+#include <cmath>
 #define HIGH 1
 #define LOW 0
 #define OUTPUT 1
@@ -12,7 +13,7 @@
 #define INPUT_PULLUP 2
 typedef uint8_t byte;
 uint32_t millis(); void delay(uint32_t); void delayMicroseconds(uint32_t);
-void pinMode(int,int); int digitalRead(int); void digitalWrite(int,int);
+void pinMode(int,int); int digitalRead(int); void digitalWrite(int,int); int analogRead(int);
 unsigned long pulseIn(int,int,unsigned long);
 bool ledcAttach(int,int,int); void ledcWrite(int,int); void ledcSetup(int,int,int); void ledcAttachPin(int,int);
 template<class T> T constrain(T x, T a, T b){ return x<a?a:(x>b?b:x);} 

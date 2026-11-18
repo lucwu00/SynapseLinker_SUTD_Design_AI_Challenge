@@ -40,7 +40,9 @@ The 10 cm inset assumes the robot's half-diagonal is at most 8 cm (a robot up to
 
 Motors stay on the board's motor terminals: MOTOR 1 (M1A = GPIO 12, M1B = GPIO 13) is the left wheel, MOTOR 2 (M2A = GPIO 14, M2B = GPIO 27) the right wheel.
 
-**Maker Line: use all five digital outputs.** The kit usually connects only the single analog wire (AN); this firmware cannot use that, because it needs to see *which side* the tape is on. Disconnect the AN cable and run six female-female jumper wires from the Maker Line's pin header to the ESP32 board's GPIO header:
+**Maker Line, option 1 (default, no rewiring): the kit's analog AN wire.** `config.h` has `LINE_MODE LINE_MODE_ANALOG`. Run `a` in the hardware test to find which pin the AN wire is on and put it in `PIN_LINE_AN`. Station bars and T-tops read as "all sensors on" and are detected directly. Side branches cannot be seen on one analog wire, so the robot passes or turns at them **by distance from the last station bar**: calibrate `CM_PER_S` (test `v`) to within about 10%.
+
+**Maker Line, option 2 (more robust): all five digital outputs.** Set `LINE_MODE LINE_MODE_DIGITAL`. Then side branches are seen directly too. The kit usually connects only the single analog wire (AN); this firmware cannot use that, because it needs to see *which side* the tape is on. Disconnect the AN cable and run six female-female jumper wires from the Maker Line's pin header to the ESP32 board's GPIO header:
 
 | Maker Line pin | ESP32 header pin | Notes |
 |---|---|---|
@@ -74,7 +76,7 @@ Flash `firmware/ojanbot_hw_test` (see `firmware/README.md`), open Serial Monitor
 
 | Step | Command | Pass when | If not, change in `config.h` |
 |---|---|---|---|
-| 0 Wiring | `k`, slide across the tape | All five D pins "changes", ultrasonic has echoes | See section 3 |
+| 0 Wiring | Analog: `a`, then `k`. Digital: `k`. Slide across the tape | Analog: "AN wire is most likely on GPIO n", then AN swings > 0.8 V. Digital: all five D pins "changes". Ultrasonic has echoes | Analog: set `PIN_LINE_AN`. Digital: see the table below |
 | 1 Line sensor | `l`, slide the robot across the tape | `..#..` when centred; on a station bar `#####` ("BAR"); over a junction branch `###..` or `..###` | Left/right reversed: swap D1↔D5 pins. All inverted: `LINE_ACTIVE_HIGH 0`. Bar not "BAR": make it longer |
 | 2 Wheels | `L`, `R`, `f` (wheels lifted first) | Each named wheel rolls forward | Wrong wheel: swap the L and R pins. Backwards: `INVERT_LEFT` / `INVERT_RIGHT` 1 |
 | 3 Ultrasonic | `u`, hold a box 5, 8 and 12 cm away | Readings within about 1 cm | Check the ECHO divider and pins |

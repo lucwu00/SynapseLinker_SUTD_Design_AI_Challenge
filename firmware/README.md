@@ -25,7 +25,8 @@ The ESP32's current OjanBot joystick page (Wi-Fi access point 192.168.4.1) is re
 |---|---|
 | Left motor (MOTOR 1: M1A, M1B), PWM-PWM | 12, 13 |
 | Right motor (MOTOR 2: M2A, M2B), PWM-PWM | 14, 27 |
-| Maker Line D1 … D5 (digital, powered at 3.3 V) | 15, 2, 4, 5, 18 |
+| Maker Line, analog mode (default): AN wire | `PIN_LINE_AN`, found with hw test `a` |
+| Maker Line, digital mode: D1 … D5 (powered at 3.3 V) | 15, 2, 4, 5, 18 |
 | Ultrasonic TRIG / ECHO | 21 / 22 (ECHO divider if the sensor runs on 5 V) |
 | Emergency stop | BOOT button (GPIO 0) |
 | Status LED | disabled (GPIO 2 is Maker Line D2) |
@@ -52,3 +53,5 @@ obstacle ahead: BLOCKED -> clears within 5 s: OBSTACLE_CLEARED, carry on
 Safety built in: no steering around obstacles; stops after 6 s without the backend; emergency stop (dashboard or BOOT button) holds until Resume; a turn that cannot find the line inside its angle window stops with an error; a missed feature, a bar where a branch should be, or a line continuing past the top of a T stops with an error.
 
 To re-run the logic check on a computer with g++: `firmware/sim/run_sim.sh` (stub Arduino headers + a model of the table).
+
+**Analog vs digital line sensor.** `LINE_MODE_ANALOG` uses the Maker Line's single AN wire as the kit ships: stations and T-tops are seen directly (the output goes above 90% of 3.3 V when all sensors are on), and side branches are handled by distance from the last bar. Simulated with the speed estimate up to 20% wrong: all demo routes still completed. `LINE_MODE_DIGITAL` needs five wires and sees side branches directly.

@@ -167,7 +167,14 @@ static void findAnalogPin() {
   if (best < 0 || span < 800)
     Serial.println("=> No pin swings: is the Maker Line powered (its LEDs light over black)? Is the AN wire on an ADC pin?");
   else
-    Serial.printf("=> The AN wire is most likely on GPIO %d. Set #define PIN_LINE_AN %d in config.h.\n", ADC[best], ADC[best]);
+  {
+    Serial.printf("=> The AN wire is most likely on GPIO %d.\n", ADC[best]);
+    if (ADC[best] < 32)
+      Serial.println("   WARNING: that is an ADC2 pin, which the ESP32 cannot read while Wi-Fi is on.\n"
+                     "   Move the Maker Line's cable to a port on GPIO 32-39 (e.g. Grove 5: 33/32), run 'a' again.");
+    else
+      Serial.printf("   Set #define PIN_LINE_AN %d in config.h.\n", ADC[best]);
+  }
 }
 
 // Which of the 5 digital line pins actually change? If none do, the Maker Line is not wired

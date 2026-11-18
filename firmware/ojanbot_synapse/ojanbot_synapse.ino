@@ -30,6 +30,9 @@
 #include "config.h"
 
 // Stop with a clear message if this folder still has an old config.h next to a newer sketch.
+#if LINE_MODE == LINE_MODE_ANALOG && (PIN_LINE_AN < 32 || PIN_LINE_AN > 39)
+#error "PIN_LINE_AN must be GPIO 32-39 (ADC1). ADC2 pins (2, 4, 12-15, 25-27) cannot be read while Wi-Fi is on: move the Maker Line's AN wire"
+#endif
 #if !defined(FEATURE_CONFIRM) || !defined(SENSOR_AHEAD_CM) || !defined(PIN_LINE_D5) || !defined(LINE_MODE)
 #error "config.h is out of date: copy firmware/ojanbot_synapse/config.h from the repo into this sketch's folder"
 #endif

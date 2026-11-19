@@ -625,3 +625,18 @@ def test_xray_added_while_walking_to_consult_is_a_doctors_order(table_svc):
     _drive(svc)
     demo.scene(svc, 2); demo.scene(svc, 3)                               # no R07 error
     assert svc._patient(A)["assigned_destination"] == "XRAY"
+
+
+def test_staff_mark_arrived_also_lands_the_robot():
+    """Real robot did not report (Wi-Fi off while driving): staff press Mark arrived on the patient."""
+    svc = SynapseService(db_path=":memory:", predictor=PRED)
+    svc.planner = table_planner()
+    svc.reset()
+    svc.adapters["EDi-01"] = ESP32Adapter("EDi-01", on_event=svc._robot_event, nodes=svc.planner.map["nodes"])
+    demo.scene(svc, 1)
+    a = svc.adapters["EDi-01"]
+    assert a.current and a.current.state.value == "NAVIGATING"
+    svc.arrive_at_station("ORTHO_001")
+    assert svc._patient("ORTHO_001")["status"] == "QUEUED"
+    assert a.get_robot_status().state.value == "ARRIVED" and a.get_robot_status().position == "S3"
+    svc.stop()

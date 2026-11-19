@@ -656,6 +656,18 @@ class SynapseService:
     def arrive_at_station(self, pid: str, source: str = "staff") -> dict:
         with self.lock:
             p = self._patient(pid)
+            if source == "staff" and p["robot_id"] in self.adapters:
+                a = self.adapters[p["robot_id"]]
+                t = a.current
+                if t and t.patient_id == pid and t.state in ACTIVE_STATES:
+                    # staff confirm the robot brought the patient: the robot has arrived too (its report was
+                    # missed, e.g. Wi-Fi off while driving). Arrival handling joins the queue as usual.
+                    self._event("ARRIVAL_CONFIRMED", "staff", f"Staff confirmed {p['robot_id']} arrived with {pid}",
+                                patient_id=pid, robot_id=p["robot_id"])
+                    self.robot_command(p["robot_id"], "report_arrival", t.task_id)
+                    p = self._patient(pid)
+                    if p["status"] != "GUIDED":
+                        return self.journey(pid)
             step = p["assigned_destination"]
             if p["status"] != "GUIDED" or not step:
                 raise ServiceError("Patient has no confirmed destination", 409)

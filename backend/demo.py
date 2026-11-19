@@ -157,25 +157,21 @@ def d3(svc):
             req.remove("XRAY")
             svc.db.update("patients", "patient_id", A, required_steps=req)
         add = [x for x in ("XRAY", "REVIEW") if not _pending(svc, A, x)]   # Add X-ray may have been pressed already
+        svc.route_check["EDi-01"] = _xray_room_1(svc)       # it looks into the nearest X-ray room on its way
         svc.complete_service(A, "CONSULT", added_steps=add or None, recorded_by="Doctor")
     elif not _pending(svc, A, "XRAY") and not _done(svc, A, "XRAY"):
         svc.change_orders(A, add=["XRAY"], recorded_by="Doctor")
     if _status(svc, A) == "AWAITING_GUIDANCE":             # auto-dispatch did not run (e.g. robot not ready)
         svc.confirm_destination(A, "XRAY", robot_id="EDi-01", source="staff")
+    svc.route_check.pop("EDi-01", None)
     p = svc._patient(A)
     first = _room_label(svc, p.get("assigned_room"))
-    room1 = _xray_room_1(svc)
-    knows = p.get("assigned_room") != room1
     return dict(title="A to X-ray: room occupied, re-guide",
-                narration=["Mdm Lee's X-ray starts in X-ray Room 1. The doctor finishes Mr Tan's consultation and orders an X-ray, then a doctor review "
-                           "(clinician order). Consultation Room 1 is free again.",
-                           f"RULES + ML: next service X-ray. EDi-01 takes him to the nearest X-ray room the system believes "
-                           f"is free: {first}.",
-                           ("X-ray Room 1 is OCCUPIED: Mdm Lee's X-ray has started there (red on the floor map), so "
-                            "EDi-01 re-guides him to X-ray Room 2, round the top-right corner." if knows else
-                            "WATCH: on arrival EDi-01 turns to scan the room, finds Mdm Lee there (OCCUPIED), updates the room "
-                            "status and re-guides Mr Tan round the top-right corner to X-ray Room 2. Nobody told the system "
-                            "the room was taken: the robot sensed it."),
+                narration=["Mdm Lee's X-ray starts in X-ray Room 1 (red). The doctor finishes Mr Tan's consultation and "
+                           "orders an X-ray, then a doctor review (clinician order). Consultation Room 1 is free again.",
+                           f"RULES + ML: next service X-ray. EDi-01 leads him to the nearest X-ray room, {first}.",
+                           "WATCH: EDi-01 stops at X-ray Room 1 and turns to look in: Mdm Lee is there (OCCUPIED), so it "
+                           "re-guides Mr Tan round the top-right corner to X-ray Room 2.",
                            "When EDi-01 shows ARRIVED at X-ray Room 2, go to scene 4."])
 
 

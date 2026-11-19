@@ -161,6 +161,7 @@ class SynapseService:
             self.robot_notes = {}
             self.pickups = {}
             self.route_via = {}
+            self.route_check = {}        # robot -> room it must look into first, even if listed as occupied
             self.last_room = {}          # patient -> room they were last in (to keep showing them on the map)          # robot -> node its next route must pass (e.g. collect a patient on the way)
             self.order_locked = set()    # patients whose step order staff set by hand (the router follows it)
             self.queue_override = {}     # station -> patient ids in the order staff chose            # task id -> patient: the robot is driving to collect them (no guiding yet)        # robot -> (patient, note shown on its screen), e.g. a takeover      # virtual robot -> the walk it is showing a patient on the floor map
@@ -179,7 +180,8 @@ class SynapseService:
                         obstacle_wait_s=m.get("obstacle_wait_s", 5), nodes=m["nodes"], start_node=m["start_node"],
                         detect_m=m.get("obstacle_detect_m", 0.25),
                         obstacle_on=lambda a, b: edge_key(a, b) in self.world["obstacles"],
-                        room_occupied=lambda room: room in self.world["people"])
+                        room_occupied=lambda room: room in self.world["people"],
+                        scan_s=m.get("room_scan_s", 2.5))
                 elif r["adapter"] == "esp32":
                     self.adapters[rid] = ESP32Adapter(rid, on_event=self._robot_event, nodes=m["nodes"],
                                                       est_speed_m_s=m.get("robot_speed_m_s", 0.08))
@@ -975,7 +977,7 @@ class SynapseService:
             a = self.adapters[rid]
             here = self.planner.node_of(a.get_robot_status().position)
             heading = self.robot_heading.get(rid)
-            room = self._choose_room(st, here, heading_from=heading)
+            room = self.route_check.pop(rid, None) or self._choose_room(st, here, heading_from=heading)
             if not room:
                 raise ServiceError(f"No free, reachable {st} room on the track", 409)
             via = self.route_via.pop(rid, None)

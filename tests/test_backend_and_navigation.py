@@ -406,7 +406,7 @@ def test_table_demo_story(table_svc):
     assert v and v[0]["virtual"] and v[0]["route"][-1] == "S2"            # EDi-02 drawn walking her there
     demo.scene(svc, 3)
     assert svc._patient("ORTHO_101")["status"] == "IN_SERVICE"            # clicking 3 started her X-ray
-    assert st("ORTHO_001")["assigned_room"] == "ROOM_C"                 # X-ray Room 1 occupied: straight to Room 2
+    assert st("ORTHO_001")["assigned_room"] == "ROOM_B"                 # it looks into X-ray Room 1 first
     _drive(svc)
     assert st("ORTHO_001")["status"] == "QUEUED" and st("ORTHO_001")["assigned_room"] == "ROOM_C"
     demo.scene(svc, 4)
@@ -659,7 +659,9 @@ def test_esp32_story_with_staff_confirmations(monkeypatch):
     svc.arrive_at_station(A)
     demo.scene(svc, 2); demo.scene(svc, 3)
     a = svc.adapters["EDi-01"]
-    assert svc._patient(A)["assigned_room"] == "ROOM_C"                            # Room 1 occupied (her X-ray)
+    assert svc._patient(A)["assigned_room"] == "ROOM_B"                            # goes to look into Room 1
+    svc.robot_command("EDi-01", "report_arrival", a.current.task_id)              # occupied -> re-guided
+    assert svc._patient(A)["assigned_room"] == "ROOM_C"
     demo.scene(svc, 4)                                                             # lands EDi-01 at Room 2 first
     assert svc._patient(B)["status"] == "GUIDED" and "S2" in a.current.route.nodes
     svc.arrive_at_station(B)                                                       # staff: EDi-01 brought her

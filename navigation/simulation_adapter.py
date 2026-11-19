@@ -33,8 +33,10 @@ class SimulationAdapter(NavigationAdapter):
     def __init__(self, robot_id: str, speed_m_s: float = 0.15, on_event=None, kind: str = "physical",
                  obstacle_wait_s: float = 5.0, nodes: dict | None = None, start_node: str = "START",
                  obstacle_on: Callable[[str, str], bool] | None = None,
-                 room_occupied: Callable[[str], bool] | None = None, detect_m: float = DETECT_M):
+                 room_occupied: Callable[[str], bool] | None = None, detect_m: float = DETECT_M,
+                 scan_s: float = 0.0):
         super().__init__(robot_id, on_event)
+        self.scan_s, self.scan_left = scan_s, None          # pause on a room's bar while it looks into the room
         self.speed, self.wait_s, self.nodes, self.detect_m = speed_m_s, obstacle_wait_s, nodes or {}, detect_m
         self.obstacle_on = obstacle_on or (lambda a, b: False)
         self.room_occupied = room_occupied or (lambda room: False)
@@ -106,6 +108,7 @@ class SimulationAdapter(NavigationAdapter):
 
     def _start(self, route: Route):
         self.travelled, self.blocked_edge, self.blocked_for, self.reported, self.manual_obstacle = 0.0, None, 0.0, False, False
+        self.scan_left = None
         self.current.state = self.status.state = NavState.NAVIGATING
         self.status.task_id, self.status.message = self.current.task_id, None
 
@@ -142,6 +145,15 @@ class SimulationAdapter(NavigationAdapter):
             self.travelled = min(nxt, cum[-1])
             t.progress = self.travelled / max(cum[-1], 1e-9)
             if self.travelled >= cum[-1] - 1e-9:
+                if t.route.room_id and self.scan_s > 0:             # on the bar: turn to the room and look
+                    if self.scan_left is None:
+                        self.scan_left = self.scan_s
+                        self.status.message = "Checking the room"
+                        return
+                    self.scan_left -= dt_s
+                    if self.scan_left > 0:
+                        return
+                self.scan_left = None
                 self._arrive(t)
         elif st == NavState.BLOCKED and not self.reported:
             a, b = self.blocked_edge

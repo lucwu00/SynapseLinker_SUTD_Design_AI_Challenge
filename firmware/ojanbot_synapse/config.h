@@ -16,15 +16,15 @@
 // Demo day: the system laptop runs the backend and a Windows Mobile Hotspot.
 // The ESP32 joins that hotspot (2.4 GHz only!).
 #ifndef WIFI_SSID
-#define WIFI_SSID      "SYNAPSE-DEMO"          // >>> CHECK  hotspot name
+#define WIFI_SSID      "Luc_iPhone"            // demo hotspot (iPhone, Maximize Compatibility on)
 #endif
 #ifndef WIFI_PASSWORD
-#define WIFI_PASSWORD  "change-me-123"         // >>> CHECK  hotspot password
+#define WIFI_PASSWORD  "lovelymojo12345"
 #endif
 // Laptop IP on its own hotspot is usually 192.168.137.1. No trailing slash.
 // A https:// Render URL also works but adds 0.3-1 s delay per poll; use the laptop on demo day.
 #ifndef BACKEND_URL
-#define BACKEND_URL    "http://192.168.137.1:8000"
+#define BACKEND_URL    "http://172.20.10.4:8000"   // laptop on the iPhone hotspot (check ipconfig)
 #endif
 #define ROBOT_ID       "EDi-01"
 

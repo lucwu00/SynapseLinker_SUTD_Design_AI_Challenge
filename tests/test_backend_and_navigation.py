@@ -8,7 +8,7 @@ from navigation.map_loader import validate_map, MapError, load_map
 from navigation.simulation_adapter import SimulationAdapter
 from navigation.esp32_adapter import ESP32Adapter
 from navigation.navigation_interface import NavigationError
-from navigation.navigation_models import NavState
+from navigation.navigation_models import NavState, ACTIVE_STATES
 from flow.predictor import Predictor
 
 PRED = Predictor()
@@ -382,3 +382,27 @@ def test_table_scenes_8_and_9(table_svc):
     assert ("J_R", "START") in svc.planner.blocked or ("START", "J_R") in svc.planner.blocked
     types = [e["type"] for e in svc.db.query("SELECT type FROM events")]
     assert "CORRIDOR_BLOCKED" in types and "REROUTED" in types
+
+
+def test_esp32_radio_off_while_driving():
+    """AN wire on an ADC2 pin: the robot goes quiet while driving; that is not a comm loss."""
+    ev = []
+    a = ESP32Adapter("EDi-01", on_event=lambda k, d: ev.append(k), comm_timeout_s=6.0, radio_off_timeout_s=60.0)
+    a.navigate("P", "XRAY", "T1", RoutePlanner().plan(None, "XRAY"))
+    a.poll_command()
+    a.handle_status({"task_id": "T1", "event": "ACK"})
+    a.handle_status({"task_id": "T1", "event": "RADIO_OFF"})
+    a.status.last_seen -= 20                                     # 20 s silence while driving
+    a.tick(1)
+    assert "COMM_LOST" not in ev and a.tasks["T1"].state in ACTIVE_STATES
+    a.handle_status({"task_id": "T1", "event": "ARRIVED"})       # back online on arrival
+    assert a.tasks["T1"].state == NavState.ARRIVED and not a.radio_off
+    a.status.last_seen -= 10                                     # normal 6 s limit applies again
+    a.tick(1)
+    assert "COMM_LOST" in ev
+    a2 = ESP32Adapter("EDi-01", on_event=lambda k, d: ev.append(k), radio_off_timeout_s=60.0)
+    a2.navigate("P", "XRAY", "T2", RoutePlanner().plan(None, "XRAY"))
+    a2.poll_command(); a2.handle_status({"task_id": "T2", "event": "RADIO_OFF"})
+    a2.status.last_seen -= 61                                    # never came back: fail the task
+    a2.tick(1)
+    assert a2.tasks["T2"].state == NavState.FAILED

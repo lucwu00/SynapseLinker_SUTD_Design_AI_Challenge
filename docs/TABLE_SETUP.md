@@ -42,6 +42,8 @@ Motors stay on the board's motor terminals: MOTOR 1 (M1A = GPIO 12, M1B = GPIO 1
 
 **Maker Line, option 1 (default, no rewiring): the kit's analog AN wire.** `config.h` has `LINE_MODE LINE_MODE_ANALOG`. Run `a` in the hardware test to find which pin the AN wire is on and put it in `PIN_LINE_AN`. Station bars and T-tops read as "all sensors on" and are detected directly. Side branches cannot be seen on one analog wire, so the robot passes or turns at them **by distance from the last station bar**: calibrate `CM_PER_S` (test `v`) to within about 10%.
 
+If `a` finds the AN wire on an **ADC2 pin** (0, 2, 4, 12–15, 25–27; on our OjanBot it is GPIO 15), leave it there. The ESP32 cannot read ADC2 while Wi-Fi is on, so the firmware switches Wi-Fi **off while driving** and back on whenever the robot stops (start, arrival, obstacle, reroute, e-stop). Run `o` in the hardware test once to confirm the pin still reads the tape after Wi-Fi has been on. While it drives, the dashboard shows "Driving with Wi-Fi off" and the dashboard Stop only reaches the robot once it stops, so use the **BOOT button** (or lift the robot) to stop it mid-drive. The obstacle stop works as normal. With the AN wire on GPIO 32–39 (ADC1, e.g. Grove 5 or 7), Wi-Fi stays on throughout.
+
 **Maker Line, option 2 (more robust): all five digital outputs.** Set `LINE_MODE LINE_MODE_DIGITAL`. Then side branches are seen directly too. The kit usually connects only the single analog wire (AN); this firmware cannot use that, because it needs to see *which side* the tape is on. Disconnect the AN cable and run six female-female jumper wires from the Maker Line's pin header to the ESP32 board's GPIO header:
 
 | Maker Line pin | ESP32 header pin | Notes |

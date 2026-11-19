@@ -54,6 +54,7 @@ Events:
 - `BLOCKED`: the ultrasonic sensor sees an obstacle, so the robot stops.
 - `OBSTACLE_CLEARED`: the path is clear again.
 - `ESTOP_PRESSED`: the physical button was pressed.
+- `RADIO_OFF`: (AN wire on an ADC2 pin only) the robot is switching Wi-Fi off to drive. The backend then allows up to 60 s of silence instead of 6 s; the next poll or status (e.g. `ARRIVED`, `BLOCKED`) ends it.
 - `ERROR`: anything else; include a `message`.
 
 ## Line following

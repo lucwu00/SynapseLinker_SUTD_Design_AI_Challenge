@@ -74,8 +74,15 @@ void cmd(const char*type,const char*task,const char*start,std::vector<F> fs,bool
   Command c={}; strlcpy(c.type,type,12); strlcpy(c.task,task,32); c.startAct=actOf(start);
   for(auto f:fs) c.marks[c.nMarks++]=Feature{f.t,f.p,actOf(f.a),f.d,f.m}; c.scan=scan; c.scanLeft=left; xQueueSend(cmdQ,&c,0);
 }
+static void simRadio(){
+#if OFFLINE_DRIVE
+  static int RD=getenv("RADIO_MS")?atoi(getenv("RADIO_MS")):300; static int c=0; 
+  bool wantOff=!radioWanted; if(wantOff!=radioOff){ if(++c>=RD){ radioOff=wantOff; c=0; } } else c=0;
+  static int bad=0; if(!radioOff && state!=BLOCKED && (pwmL1||pwmL2||pwmR1||pwmR2) && ++bad==1) printf("!! wheels turning while radio on (line unreadable)\n");
+#endif
+}
 void runUntil(const char* stateName,int maxMs){
-  for(int i=0;i<maxMs;i++){ NOW++; lastCommOkMs=NOW; loop(); physics(0.001);
+  for(int i=0;i<maxMs;i++){ NOW++; lastCommOkMs=NOW; simRadio(); loop(); physics(0.001);
     if (!strcmp(STATE_NAME[state],stateName)) { printf("   ...%s at t=%.2fs pose (%.3f,%.3f) %.0fdeg\n",stateName,NOW/1000.0,rx,ry,fmod(th*57.3+720,360)); return; } }
   printf("!! timeout waiting for %s; state=%s pose (%.3f,%.3f)\n",stateName,STATE_NAME[state],rx,ry);
 }
@@ -104,13 +111,13 @@ int main(){
   rx=0.30; ry=0.10; th=0; obst.clear(); people.clear();
   cmd("NAVIGATE","T5","GO",{{'J','L',"PASS",36.6,44.6},{'S','C',"STOP",8,16}},true,true);
   runUntil("CENTER",20000);
-  bootButton=true; for(int i=0;i<60;i++){NOW++; lastCommOkMs=NOW; loop(); physics(0.001);} bootButton=false;
-  { double x0=rx,y0=ry; for(int i=0;i<3000;i++){NOW++; lastCommOkMs=NOW; loop(); physics(0.001);}
+  bootButton=true; for(int i=0;i<60;i++){NOW++; lastCommOkMs=NOW; simRadio(); loop(); physics(0.001);} bootButton=false;
+  { double x0=rx,y0=ry; for(int i=0;i<3000;i++){NOW++; lastCommOkMs=NOW; simRadio(); loop(); physics(0.001);}
     printf("   during e-stop: state=%s wheels L=%d R=%d moved %.4f m in 3 s\n",STATE_NAME[state],pwmL1-pwmL2,pwmR1-pwmR2,hypot(rx-x0,ry-y0)); }
   cmd("RESUME","","GO",{}); runUntil("SCAN_OUT",3000);
-  for(int i=0;i<150;i++){NOW++; lastCommOkMs=NOW; loop(); physics(0.001);}
+  for(int i=0;i<150;i++){NOW++; lastCommOkMs=NOW; simRadio(); loop(); physics(0.001);}
   cmd("STOP","","GO",{});
-  { double t0=th; for(int i=0;i<3000;i++){NOW++; lastCommOkMs=NOW; loop(); physics(0.001);}
+  { double t0=th; for(int i=0;i<3000;i++){NOW++; lastCommOkMs=NOW; simRadio(); loop(); physics(0.001);}
     printf("   e-stop mid-scan: state=%s turned %.2f rad in 3 s\n",STATE_NAME[state],fabs(th-t0)); }
   cmd("RESUME","","GO",{}); runUntil("ARRIVED",8000);
   puts("== Ultrasonic unplugged (no echo ever): robot still drives, scan reports FREE with nearest -1");

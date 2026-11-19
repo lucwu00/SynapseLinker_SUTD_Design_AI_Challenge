@@ -11,6 +11,7 @@
 //    v  follow the line for 2 s, then measure how far it went (sets CM_PER_S)
 //    k  wiring check (analog AN wire or 5 digital wires, as set by LINE_MODE in config.h)
 //    a  find which pin the Maker Line's analog AN wire is on
+//    o  Wi-Fi on, then off, then read the AN wire (checks an ADC2 pin like 15 works after Wi-Fi off)
 //    x  stop everything
 //
 //  Lift the wheels off the table (or hold the robot) for f/b/L/R the first time.
@@ -169,11 +170,9 @@ static void findAnalogPin() {
   else
   {
     Serial.printf("=> The AN wire is most likely on GPIO %d.\n", ADC[best]);
+    Serial.printf("   Set #define PIN_LINE_AN %d in config.h.\n", ADC[best]);
     if (ADC[best] < 32)
-      Serial.println("   WARNING: that is an ADC2 pin, which the ESP32 cannot read while Wi-Fi is on.\n"
-                     "   Move the Maker Line's cable to a port on GPIO 32-39 (e.g. Grove 5: 33/32), run 'a' again.");
-    else
-      Serial.printf("   Set #define PIN_LINE_AN %d in config.h.\n", ADC[best]);
+      Serial.println("   That is an ADC2 pin: the robot will switch Wi-Fi off while driving. Run 'o' to check it.");
   }
 }
 
@@ -220,13 +219,29 @@ static void wiringCheck() {
 #endif
 }
 
+// The real firmware turns Wi-Fi off while driving when the AN wire is on an ADC2 pin. Check the pin
+// still reads the line after the radio has been on and off again.
+static void radioOffCheck() {
+  Serial.println("Wi-Fi on for 3 s...");
+  WiFi.mode(WIFI_STA); WiFi.begin(WIFI_SSID, WIFI_PASSWORD); delay(3000);
+  WiFi.disconnect(true); WiFi.mode(WIFI_OFF); delay(100);
+  Serial.printf("Wi-Fi off. Slide across the tape for 6 s (AN on GPIO %d)...\n", PIN_LINE_AN);
+  float vmin = 9, vmax = 0; uint32_t t0 = millis();
+  while (millis() - t0 < 6000) { float v = anVolts(); vmin = min(vmin, v); vmax = max(vmax, v); delay(5); }
+  Serial.printf("  AN went from %.2f V to %.2f V%s\n", vmin, vmax, vmax - vmin > 0.8
+                ? " - OK: the robot can drive with this pin" : " - NOT CHANGING: tell Claude (move the wire to 32-39 instead)");
+}
+
 static void wifiCheck() {
   Serial.printf("Joining Wi-Fi \"%s\" ...\n", WIFI_SSID);
   WiFi.mode(WIFI_STA); WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   uint32_t t0 = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < 15000) { delay(300); Serial.print("."); }
   Serial.println();
-  if (WiFi.status() != WL_CONNECTED) { Serial.println("FAILED: check name/password and that the hotspot is 2.4 GHz."); return; }
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("FAILED: check name/password and that the hotspot is 2.4 GHz.");
+    WiFi.disconnect(true); WiFi.mode(WIFI_OFF); return;
+  }
   Serial.printf("Connected. Robot IP %s, signal %d dBm\n", WiFi.localIP().toString().c_str(), WiFi.RSSI());
   HTTPClient http; WiFiClient plain; WiFiClientSecure secure; secure.setInsecure();
   String url = String(BACKEND_URL) + "/health";
@@ -238,6 +253,7 @@ static void wifiCheck() {
     if (code <= 0) Serial.println("Backend not reachable: is uvicorn running with --host 0.0.0.0, and is Windows Firewall allowing port 8000?");
     http.end();
   }
+  WiFi.disconnect(true); WiFi.mode(WIFI_OFF);   // so the line tests (ADC2 pins) work again afterwards
 }
 
 void setup() {
@@ -257,7 +273,7 @@ void setup() {
 #endif
   pinMode(PIN_US_TRIG, OUTPUT); pinMode(PIN_US_ECHO, INPUT);
   pinMode(PIN_ESTOP, INPUT_PULLUP);
-  Serial.println("\nOjanBot hardware test. Commands: a k l u w f b L R p P m v x");
+  Serial.println("\nOjanBot hardware test. Commands: a o k l u w f b L R p P m v x");
 }
 
 void loop() {
@@ -292,7 +308,8 @@ void loop() {
     case 'v': speedCheck(); break;
     case 'k': wiringCheck(); break;
     case 'a': findAnalogPin(); break;
+    case 'o': radioOffCheck(); break;
     case 'x': drive(0, 0); Serial.println("Stopped."); break;
-    default: Serial.println("Commands: a k l u w f b L R p P m v x");
+    default: Serial.println("Commands: a o k l u w f b L R p P m v x");
   }
 }

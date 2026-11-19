@@ -52,7 +52,9 @@
 #define LINE_MODE_DIGITAL 1
 #define LINE_MODE_ANALOG  2
 #define LINE_MODE   LINE_MODE_ANALOG
-#define PIN_LINE_AN  36                        // >>> CHECK: hw test 'a' finds the pin the AN wire is on
+// hw test 'a' finds the pin. GPIO 32-39 (ADC1): Wi-Fi stays on. Any other ADC pin (ADC2, e.g. 15):
+// works too, but the robot turns Wi-Fi off while driving and reports when it stops (hw test 'o' checks it).
+#define PIN_LINE_AN  15                        // >>> CHECK: our OjanBot's AN wire is on GPIO 15
 #define AN_NO_LINE  0.10                       // below 10% of 3.3 V = no line (Maker Line datasheet)
 #define AN_CROSS    0.90                       // above 90% = all sensors on (station bar / top of a T)
 

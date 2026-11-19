@@ -27,8 +27,10 @@ from navigation.simulation_adapter import came_from
 
 
 class ESP32Adapter(NavigationAdapter):
+    RADIO_OFF_MSG = "Driving with Wi-Fi off - updates when it stops"
+
     def __init__(self, robot_id: str, on_event=None, comm_timeout_s: float = 6.0, ack_timeout_s: float = 5.0,
-                 nodes: dict | None = None):
+                 nodes: dict | None = None, radio_off_timeout_s: float = 60.0):
         super().__init__(robot_id, on_event)
         self.marker_node = {n.get("marker"): nid for nid, n in (nodes or {}).items() if n.get("marker")}
         self.status = RobotStatus(robot_id=robot_id, kind="physical", adapter="esp32", position="START",
@@ -36,6 +38,9 @@ class ESP32Adapter(NavigationAdapter):
         self.queue: deque[dict] = deque()
         self.current: NavTask | None = None
         self.comm_timeout_s, self.ack_timeout_s = comm_timeout_s, ack_timeout_s
+        # Line sensor on an ADC2 pin: the firmware switches Wi-Fi off while driving (RADIO_OFF) and
+        # reconnects when it stops, so a longer silence is expected until the next contact.
+        self.radio_off_timeout_s, self.radio_off = radio_off_timeout_s, False
         self.sent_at: dict[str, float] = {}
         self.acked: set[str] = set()
 
@@ -115,6 +120,7 @@ class ESP32Adapter(NavigationAdapter):
     def poll_command(self) -> dict:
         now = time.time()
         self.status.last_seen, self.status.comm_ok = now, True
+        self._radio_back()
         if self.status.message == "Waiting for ESP32 to poll":
             self.status.message = None
         if not self.queue:
@@ -124,9 +130,21 @@ class ESP32Adapter(NavigationAdapter):
             self.sent_at[cmd["task_id"]] = now
         return cmd
 
+    def _radio_back(self):
+        if self.radio_off:
+            self.radio_off = False
+            if self.status.message == self.RADIO_OFF_MSG:
+                self.status.message = None
+
     def handle_status(self, payload: dict) -> RobotStatus:
         self.status.last_seen, self.status.comm_ok = time.time(), True
         ev, tid = payload.get("event"), payload.get("task_id")
+        if ev == "RADIO_OFF":
+            self.radio_off = True
+            if not self.status.message:
+                self.status.message = self.RADIO_OFF_MSG
+            return self.status
+        self._radio_back()
         t = self.tasks.get(tid) if tid else self.current
         if payload.get("marker"):
             self.status.position = self.marker_node.get(payload["marker"], payload["marker"])
@@ -191,7 +209,9 @@ class ESP32Adapter(NavigationAdapter):
     def tick(self, dt_s: float):
         now = time.time()
         t = self.current
-        if self.status.comm_ok and now - self.status.last_seen > self.comm_timeout_s:
+        limit = self.radio_off_timeout_s if self.radio_off else self.comm_timeout_s
+        if self.status.comm_ok and now - self.status.last_seen > limit:
+            self.radio_off = False
             self.status.comm_ok = False
             self.status.message = "Communication lost - robot firmware must stop itself"
             if t and t.state in ACTIVE_STATES:
@@ -199,6 +219,7 @@ class ESP32Adapter(NavigationAdapter):
                 self.status.state = NavState.FAILED
             self._emit("COMM_LOST", task_id=t.task_id if t else None)
         if t and t.state in ACTIVE_STATES and t.task_id in self.sent_at and t.task_id not in self.acked \
+                and not self.radio_off \
                 and now - self.sent_at[t.task_id] > self.ack_timeout_s:
             self.sent_at.pop(t.task_id)
             self.queue.append(t.command())          # resend once more; duplicate task_id is safe on the robot

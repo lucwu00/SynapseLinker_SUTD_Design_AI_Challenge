@@ -124,7 +124,8 @@ class RobotStatusReport(BaseModel):
     """Sent by the ESP32 firmware."""
     robot_id: str
     task_id: Optional[str] = None
-    event: Literal["ACK", "ARRIVED", "BLOCKED", "OBSTACLE_CLEARED", "PATH_BLOCKED", "ESTOP_PRESSED", "ERROR", "HEARTBEAT"]
+    event: Literal["ACK", "ARRIVED", "BLOCKED", "OBSTACLE_CLEARED", "PATH_BLOCKED", "ESTOP_PRESSED", "ERROR", "HEARTBEAT",
+                   "RADIO_OFF"]
     marker: Optional[str] = None
     room_scan: Optional[Literal["OCCUPIED", "FREE"]] = None
     marks_passed: Optional[int] = Field(None, ge=0, le=64)   # PATH_BLOCKED: tape marks crossed on this route

@@ -16,7 +16,9 @@
 //  turn back, report ARRIVED {room_scan: OCCUPIED|FREE}.
 //  Obstacle ahead: stop (BLOCKED). Cleared within 5 s -> carry on. Still there -> turn round on
 //  the line, report PATH_BLOCKED {marks_passed, on_mark}, wait for a REROUTE. Never steers round.
-//  Safe stops: emergency stop (dashboard / BOOT button) until Resume; 6 s without the backend;
+//  Safe stops: emergency stop (dashboard / BOOT button) until Resume; 6 s without the backend
+//  (ADC1 wiring only - with the AN wire on an ADC2 pin Wi-Fi is off while driving, so the dashboard
+//  Stop reaches the robot only when it is stopped; use the BOOT button or lift it);
 //  line lost; turn cannot find the line inside its angle window; unexpected or missed feature.
 //
 //  Libraries: ESP32 board package 2.x or 3.x, ArduinoJson 7.x. Board: "ESP32 Dev Module".
@@ -29,10 +31,16 @@
 #include <ArduinoJson.h>
 #include "config.h"
 
-// Stop with a clear message if this folder still has an old config.h next to a newer sketch.
-#if LINE_MODE == LINE_MODE_ANALOG && (PIN_LINE_AN < 32 || PIN_LINE_AN > 39)
-#error "PIN_LINE_AN must be GPIO 32-39 (ADC1). ADC2 pins (2, 4, 12-15, 25-27) cannot be read while Wi-Fi is on: move the Maker Line's AN wire"
+// The ESP32 cannot read ADC2 pins (0, 2, 4, 12-15, 25-27) while Wi-Fi is on. If the Maker Line's AN wire
+// is on one of them, the robot switches Wi-Fi OFF while it drives and back ON whenever it is stopped
+// (start, arrival, obstacle, reroute, e-stop). ADC1 pins (32-39) keep Wi-Fi on all the time.
+#if LINE_MODE == LINE_MODE_ANALOG && !(PIN_LINE_AN == 0 || PIN_LINE_AN == 2 || PIN_LINE_AN == 4 || \
+    (PIN_LINE_AN >= 12 && PIN_LINE_AN <= 15) || (PIN_LINE_AN >= 25 && PIN_LINE_AN <= 27) || \
+    (PIN_LINE_AN >= 32 && PIN_LINE_AN <= 39))
+#error "PIN_LINE_AN is not an analog (ADC) pin: run 'a' in the hardware test to find the AN wire"
 #endif
+#define OFFLINE_DRIVE (LINE_MODE == LINE_MODE_ANALOG && PIN_LINE_AN < 32)
+// Stop with a clear message if this folder still has an old config.h next to a newer sketch.
 #if !defined(FEATURE_CONFIRM) || !defined(SENSOR_AHEAD_CM) || !defined(PIN_LINE_D5) || !defined(LINE_MODE)
 #error "config.h is out of date: copy firmware/ojanbot_synapse/config.h from the repo into this sketch's folder"
 #endif
@@ -72,6 +80,8 @@ struct Status {
 static QueueHandle_t cmdQ, statusQ;
 static volatile uint32_t lastCommOkMs = 0;
 static volatile bool wifiUp = false;
+static volatile bool radioWanted = true;     // OFFLINE_DRIVE: control task wants Wi-Fi on (robot stopped)
+static volatile bool radioOff = false;       // OFFLINE_DRIVE: radio is fully off, the line sensor can be read
 
 static uint8_t actOf(const char* s) {
   if (!s) return A_PASS;
@@ -183,6 +193,38 @@ static void networkTask(void*) {
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   uint32_t lastPoll = 0, lastTry = millis();
   for (;;) {
+#if OFFLINE_DRIVE
+    if (!radioWanted) {                      // robot is about to drive: flush the outbox, then radio off
+      if (!radioOff) {
+        Status s; uint32_t t0 = millis();
+        while (WiFi.status() == WL_CONNECTED && millis() - t0 < 2000 && xQueuePeek(statusQ, &s, 0) == pdTRUE) {
+          if (!postStatus(s, plain, secure)) break;
+          xQueueReceive(statusQ, &s, 0);
+        }
+        if (WiFi.status() == WL_CONNECTED) {
+          Status off = {}; strlcpy(off.event, "RADIO_OFF", sizeof off.event); off.marksPassed = -1;
+          strlcpy(off.msg, "Wi-Fi off while driving (line sensor on ADC2)", sizeof off.msg);
+          postStatus(off, plain, secure);
+        }
+        WiFi.disconnect(true);
+        WiFi.mode(WIFI_OFF);
+        vTaskDelay(pdMS_TO_TICKS(50));
+        wifiUp = false;
+        radioOff = true;
+        Serial.println("[wifi] off while driving");
+      }
+      vTaskDelay(pdMS_TO_TICKS(10));
+      continue;
+    }
+    if (radioOff) {                          // stopped again: radio back on (the sensor is not read now)
+      radioOff = false;
+      WiFi.mode(WIFI_STA);
+      WiFi.setSleep(false);
+      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+      lastTry = millis();
+      Serial.println("[wifi] back on");
+    }
+#endif
     if (WiFi.status() != WL_CONNECTED) {
       wifiUp = false;
       if (millis() - lastTry > 5000) { Serial.println("[wifi] reconnecting"); WiFi.disconnect(); WiFi.begin(WIFI_SSID, WIFI_PASSWORD); lastTry = millis(); }
@@ -247,6 +289,9 @@ static uint8_t lineBits() {                  // bit i = sensor D(i+1) over black
 #if LINE_MODE == LINE_MODE_ANALOG
   // Maker Line AN: < 10% Vcc no line, 10-90% line position left..right, > 90% all sensors (bar / top of T).
   // Turned into the same 5-bit picture: 00000, a single bit at the line position, or 11111.
+#if OFFLINE_DRIVE
+  if (!radioOff) return 0;                   // ADC2 is unreadable while the radio is on
+#endif
   float v = analogRead(PIN_LINE_AN) / 4095.0f;
   if (v < AN_NO_LINE) return 0;
   if (v > AN_CROSS) return 0b11111;
@@ -680,6 +725,24 @@ void loop() {
     if (millis() - btnDown > 40 && state != ESTOP) { estop(); report("ESTOP_PRESSED", task); }
   } else btnDown = 0;
 
+#if OFFLINE_DRIVE
+  // Wi-Fi only while stopped (BLOCKED included: it only uses the ultrasonic, so the dashboard sees it live).
+  // Before any phase that reads the line, hold still until the radio is fully off; the virtual clock
+  // stands still meanwhile, like during an e-stop, so no timer runs out while waiting.
+  static bool holding = false; static uint32_t holdAt = 0;
+  radioWanted = !moving() || state == BLOCKED;
+  bool needHold = moving() && state != BLOCKED && !radioOff;
+  if (needHold && !holding) { holding = true; holdAt = millis(); stopMotors(); }
+  if (!needHold && holding) {
+    holding = false;
+    pausedTotal += millis() - holdAt;
+    lastStepAt = millis();
+    if (state == FOLLOW || state == CENTER) lastLineSeen = vnow();
+  }
+  if (!holding && millis() - lastStep >= 5) { lastStep = millis(); controlStep(); }
+  // No comm-loss stop here: Wi-Fi is off on purpose while driving. Obstacle stop, BOOT-button e-stop,
+  // line-lost and arrival stops all work without the network; the backend allows a longer silence.
+#else
   // lost the backend while moving: stop and stay stopped (the backend marks the task failed)
   if (moving() && state != ESTOP && millis() - lastCommOkMs > COMM_TIMEOUT_MS) {
     halt();
@@ -688,6 +751,7 @@ void loop() {
   }
 
   if (millis() - lastStep >= 5) { lastStep = millis(); controlStep(); }
+#endif
 
   // LED: solid while moving, fast blink when stopped by safety, slow blink idle
   bool fast = state == FAULT || state == ESTOP || state == BLOCKED || state == WAIT_REROUTE;

@@ -282,6 +282,9 @@ def _guide_virtual(svc, pid):
     st = svc.rules.station_of(step)
     if svc.planner.on_map(st):
         room = svc._choose_room(st, src)
+        r1 = _xray_room_1(svc) if st == "XRAY" else None
+        if r1 and svc.db.one("SELECT occupied, staffed FROM rooms WHERE room_id=?", (r1,)) == {"occupied": 0, "staffed": 1}:
+            room = r1                                        # the demo uses X-ray Room 1 when it is free
         if room:
             svc.db.update("patients", "patient_id", pid, assigned_room=room)
             svc.show_virtual_walk("EDi-02", pid, room, from_node=src)
@@ -311,9 +314,29 @@ def _order(svc, pid):
 
 def s2(svc):
     if not _exists(svc, P2):
-        # SIMULATED starting point: the single ECG machine is free right now.
-        svc.update_station("ECG", background_queue=0, recent_wait_hint=3.0, arrivals_hint=0)
-        svc.check_in({**PATIENTS[P2], "appointment_time": svc.clock.to_dict()["clinic_time"], "robot_id": "EDi-02"})
+        # SIMULATED starting point (scenario inputs, not predictions): X-ray is quiet; the ECG and blood-test
+        # rooms have ward and ED patients. The models' learned time-of-day profile still decides the order,
+        # so the scene tries a few such mornings, mildest first, until X-ray (the room on the table) comes first.
+        settings = [((0, 2.0, 0), (1, 6.0, 1), (10, 18.0, 10)), ((0, 2.0, 0), (2, 10.0, 2), (14, 30.0, 12)),
+                    ((0, 2.0, 0), (3, 15.0, 3), (18, 40.0, 16)), ((0, 2.0, 0), (4, 25.0, 4), (22, 55.0, 20))]
+        for k, (xr, ecg, ph) in enumerate(settings):
+            for st, (q, w, a) in (("XRAY", xr), ("ECG", ecg), ("PHLEBOTOMY", ph)):
+                svc.update_station(st, background_queue=q, recent_wait_hint=w, arrivals_hint=a)
+            if k == 0:
+                svc.check_in({**PATIENTS[P2], "appointment_time": svc.clock.to_dict()["clinic_time"], "robot_id": "EDi-02"})
+            else:
+                svc.recommend(P2)
+            if (_rec(svc, P2).get("recommended_sequence") or [None])[0] == "XRAY":
+                break
+        else:
+            # at this time of day the models still put another test first; for the demo table the nurse
+            # starts her with the X-ray (shown on her card as "Order set by staff"; the system's suggestion
+            # stays visible under "Why this recommendation")
+            pend = svc._pending(svc._patient(P2))
+            tests = [x for x in pend if x in ("XRAY", "PHLEBOTOMY", "ECG")]
+            seq = [x for x in (_rec(svc, P2).get("recommended_sequence") or []) if x in tests] or tests
+            svc.reorder_steps(P2, ["XRAY"] + [x for x in seq if x != "XRAY"] + [x for x in pend if x not in tests],
+                              by="Nurse")
     r = _rec(svc, P2)
     lines = [f"{TEST_NAME.get(c['step'], c['step'])}: wait {c['predicted_wait_min']} min, risk {c['alert_level']}"
              for c in r.get("candidates", [])]
@@ -322,8 +345,8 @@ def s2(svc):
                 narration=["Mdm Lim (pre-op) needs an X-ray, a blood test and an ECG before the doctor, in any order (rule R05)."]
                           + lines +
                           [f"ML + RULES: best order now {_seq(svc, P2)}.",
-                           (f"EDi-02 guides her to {TEST_NAME.get(step, step)} first (watch the floor map; blood test "
-                            "and ECG are not on this table, so she heads off the table for those)." if step else
+                           (f"EDi-02 guides her to {TEST_NAME.get(step, step)} first. On the floor map it stops just "
+                            "short of the room: press Mark arrived on her card when she is there." if step else
                             "She is already on her way.")])
 
 
@@ -343,7 +366,9 @@ def s3(svc):
                 narration=[f"SIMULATED: the ECG room gets urgent ward and ED requests ({q} waiting, recent wait {w:.0f} min).",
                            f"ML: ECG bottleneck risk in the next 30 min {pr['bottleneck_probability_next_30min']:.0%} "
                            f"({pr['alert_level']}); predicted wait for a new arrival {pr['predicted_wait_new_arrival_min']} min.",
-                           f"RULES: her tests may be done in any order, so ECG goes to the back: {before}  ==>  {_order(svc, P2)}.",
+                           (f"RULES: her tests may be done in any order, so ECG goes to the back: {before}  ==>  {_order(svc, P2)}."
+                            if before != _order(svc, P2) else
+                            f"RULES: ECG is already last in her order ({before}), so it stays at the back."),
                            f"EDi-02 now guides her to {TEST_NAME.get(step, step)}." if step else
                            "She finishes the test she is at; the new order applies after it."])
 

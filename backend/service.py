@@ -815,7 +815,17 @@ class SynapseService:
                 if req.count(step) <= done.count(step):
                     raise ServiceError(f"{step} is not a pending step", 409)
                 if step == busy and req.count(step) - done.count(step) == 1:
-                    raise ServiceError(f"{pid} is already going to {step}", 409)
+                    if p["status"] != "GUIDED":
+                        raise ServiceError(f"{pid} is already at {LABEL_TXT.get(step, step)}", 409)
+                    # still on the way: stop guiding there (the robot drops the trip) and choose again
+                    rid = p["robot_id"]
+                    a = self.adapters.get(rid) if rid else None
+                    if a and a.current and a.current.patient_id == pid and a.current.state in ACTIVE_STATES:
+                        a.cancel_navigation(a.current.task_id)
+                    self.db.update("patients", "patient_id", pid, status="AWAITING_GUIDANCE", assigned_destination=None,
+                                   assigned_room=None, updated_at=time.time())
+                    busy = None
+                    p = {**p, "status": "AWAITING_GUIDANCE", "assigned_destination": None, "assigned_room": None}
                 i = len(req) - 1 - req[::-1].index(step)          # the last (pending) occurrence
                 req.pop(i)
                 if step == "XRAY" and "REVIEW" in req[i:] and consulted and req.count("XRAY") <= done.count("XRAY"):

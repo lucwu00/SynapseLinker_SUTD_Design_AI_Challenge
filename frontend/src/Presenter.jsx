@@ -91,7 +91,7 @@ function OrdersEditor({ p, act }) {
     <div className="orders-edit">
       <span className="small muted">Steps to do{pending.some((_, i) => movable(i)) ? " (drag or use ‹ › to reorder)" : ""}:</span>
       {pending.map((x, i) => {
-        const fixed = ["REGISTRATION", "CONSULT", "PAYMENT"].includes(x) || (x === busy && pending.indexOf(x) === i);
+        const fixed = ["REGISTRATION", "CONSULT", "PAYMENT"].includes(x) || (x === busy && pending.indexOf(x) === i && p.status !== "GUIDED");
         return (
           <span key={`${x}-${i}`} className={`chip ${x === busy ? "chip-now" : ""} ${drag === i ? "chip-drag" : ""}`}
                 draggable={movable(i)} onDragStart={() => setDrag(i)} onDragEnd={() => setDrag(null)}

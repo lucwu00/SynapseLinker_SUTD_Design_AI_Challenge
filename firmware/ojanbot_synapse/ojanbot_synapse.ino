@@ -230,7 +230,16 @@ static void networkTask(void*) {
 #endif
     if (WiFi.status() != WL_CONNECTED) {
       wifiUp = false;
-      if (millis() - lastTry > 5000) { Serial.println("[wifi] reconnecting"); WiFi.disconnect(); WiFi.begin(WIFI_SSID, WIFI_PASSWORD); lastTry = millis(); }
+      // iPhone hotspots can take 10+ s to answer; restarting the join too early keeps it from ever finishing
+      if (millis() - lastTry > 15000) {
+        wl_status_t st = WiFi.status();
+        Serial.printf("[wifi] not connected to \"%s\" (%s) - retrying\n", WIFI_SSID,
+                      st == WL_NO_SSID_AVAIL ? "hotspot not found: open the iPhone Personal Hotspot screen, 2.4 GHz" :
+                      st == WL_CONNECT_FAILED ? "wrong password?" : st == WL_DISCONNECTED ? "disconnected / still joining" :
+                      "still joining");
+        WiFi.disconnect(); vTaskDelay(pdMS_TO_TICKS(200));
+        WiFi.begin(WIFI_SSID, WIFI_PASSWORD); lastTry = millis();
+      }
       vTaskDelay(pdMS_TO_TICKS(100));
       continue;
     }

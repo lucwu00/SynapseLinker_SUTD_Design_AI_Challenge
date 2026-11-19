@@ -25,6 +25,7 @@ from fastapi.staticfiles import StaticFiles
 from backend import schemas as S
 from backend.service import SynapseService, ServiceError
 from backend import demo
+from backend import assistant
 from flow.predictor import PredictionInputError
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -266,6 +267,19 @@ def simulation_results():
 def demo_reset():
     svc.reset()
     return {"ok": True}
+
+
+@app.get("/assistant/status")
+def assistant_status():
+    return assistant.status()
+
+
+@app.post("/assistant/ask")
+def assistant_ask(req: S.AssistantRequest):
+    try:
+        return assistant.ask(svc, req.robot_id, req.question, req.lang, req.clinic_info, req.history)
+    except ServiceError as e:
+        raise HTTPException(e.status, str(e))
 
 
 @app.post("/demo/scene/{n}")

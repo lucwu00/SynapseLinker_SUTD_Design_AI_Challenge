@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, useLive, connectText } from "./api";
 import { LANGS, PLACE, TURN, T, VOICE, fill } from "./i18n";
-import { answer, Recognition, secureOk } from "./voice";
+import { answer, FAQ, Recognition, secureOk } from "./voice";
 import JourneyLine from "./JourneyLine";
 
 function speak(text, lang) {
@@ -34,6 +34,10 @@ export default function RobotScreen({ robotId }) {
   const [typed, setTyped] = useState("");
   const recRef = useRef(null);
   const ctxRef = useRef(null);
+  const turnsRef = useRef([]);
+  turnsRef.current = turns;
+  const [claude, setClaude] = useState(false);          // Claude API configured on the backend?
+  useEffect(() => { api("/assistant/status").then((r) => setClaude(!!r?.enabled)).catch(() => setClaude(false)); }, []);
   const logRef = useRef(null);
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [turns, sheet]);
   const patientId = s?.journey?.patient?.patient_id;
@@ -109,6 +113,23 @@ export default function RobotScreen({ robotId }) {
     if (!q2) return;
     const c = ctxRef.current;
     const r = answer(q2, c, VOICE[c.lang]);
+    const XV = VOICE[c.lang];
+    // safety and actions always stay with the fixed rules; everything else may go to Claude
+    const fixed = r.action || [XV.urgent, XV.medical, XV.calling, XV.noPatientHelp, XV.notHeard].includes(r.reply);
+    if (claude && !fixed) {
+      const history = turnsRef.current.slice(-6);
+      const id = Date.now();
+      setTurns((a) => [...a, { who: "you", text: q2 }, { who: "me", text: "…", id }].slice(-MAX_TURNS));
+      const done = (text, ai) => {
+        setTurns((a) => a.map((x) => (x.id === id ? { who: "me", text, ai } : x)));
+        speak(text, LANGS.find((l) => l.code === c.lang).speech);
+      };
+      const timer = new Promise((res) => setTimeout(() => res(null), 9000));
+      Promise.race([api("/assistant/ask", "POST", { robot_id: robotId, question: q2, lang: c.lang, history,
+                                                    clinic_info: FAQ.map((f) => f.a[c.lang] || f.a.en) }).catch(() => null), timer])
+        .then((res) => (res?.ok && res.reply ? done(res.reply, true) : done(r.reply, false)));
+      return;
+    }
     setTurns((a) => [...a, { who: "you", text: q2 }, { who: "me", text: r.reply }].slice(-MAX_TURNS));
     const lng = typeof r.action === "object" && r.action?.lang;
     speak(r.reply, LANGS.find((l) => l.code === (lng || c.lang)).speech);
@@ -210,7 +231,7 @@ export default function RobotScreen({ robotId }) {
             <ol className="convo-log" aria-live="polite" ref={logRef}>
               {turns.length === 0 && <li className="convo-empty">{X.empty}</li>}
               {turns.map((x, i) => (
-                <li key={i} className={`bubble bubble-${x.who}`}><span className="bubble-who">{x.who === "you" ? X.you : X.me}</span>{x.text}</li>
+                <li key={i} className={`bubble bubble-${x.who}`}><span className="bubble-who">{x.who === "you" ? X.you : X.me}{x.ai && <span className="ai-tag"> · Claude</span>}</span>{x.text}</li>
               ))}
             </ol>
             <form className="convo-type" onSubmit={(e) => { e.preventDefault(); ask(typed); setTyped(""); }}>

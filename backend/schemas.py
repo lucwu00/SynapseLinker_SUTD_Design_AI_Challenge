@@ -188,3 +188,12 @@ class RoomStatusUpdate(BaseModel):
 
 class AckRequest(BaseModel):
     by: str = Field("Staff", max_length=40)
+
+
+class AssistantRequest(BaseModel):
+    """A patient's question on a robot screen, for the Claude-backed assistant."""
+    robot_id: str
+    question: str = Field(..., max_length=500)
+    lang: str = "en"
+    clinic_info: list[str] = []
+    history: list[dict] = []

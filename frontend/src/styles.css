@@ -310,3 +310,4 @@ button.big { font-size: 1.3rem; min-height: 3.6rem; border-radius: var(--radius-
 .vbot { fill: #fff; stroke: var(--robot); stroke-width: 3; stroke-dasharray: 4 3; }
 .vbot-t { font-size: 12px; font-weight: 700; fill: var(--robot); text-anchor: middle; }
 .takeover { margin: .4rem 0 0; padding: .5rem .8rem; border-radius: 8px; background: #e8e4f6; color: var(--robot); font-weight: 700; }
+.ai-tag { font-weight: 500; opacity: .7; }

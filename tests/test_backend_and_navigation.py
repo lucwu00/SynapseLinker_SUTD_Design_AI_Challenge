@@ -1,3 +1,4 @@
+import json
 """Journey state machine, autonomous loop, robots/handover and navigation safety.  Run: python -m pytest -q"""
 import pytest
 
@@ -519,3 +520,27 @@ def test_patient_id_with_spaces(svc):
     j = svc.check_in(dict(patient_id="Mr Z", visit_type="follow_up", referral_category="Knee/Hip", age=60))
     assert j["patient"]["patient_id"] == "Mr Z"
     svc.change_orders("Mr Z", add=["ECG"])
+
+
+def test_assistant_uses_live_journey(table_svc, monkeypatch):
+    """Claude assistant: off without a key; with one, it sends the live journey and returns the reply."""
+    from backend import assistant
+    svc = table_svc
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(assistant, "KEY_FILE", assistant.ROOT / "no_such_key_file")
+    assert assistant.ask(svc, "EDi-01", "hi", "en", [], [])["reason"] == "not_configured"
+    demo.scene(svc, 1)
+    sent = {}
+
+    def fake_post(url, headers, body, timeout):
+        sent.update(body)
+        return 200, json.dumps({"content": [{"type": "text", "text": "Your next stop is Consultation Room 1."}]})
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    monkeypatch.setattr(assistant, "_post", fake_post)
+    out = assistant.ask(svc, "EDi-01", "where do I go?", "en", ["The toilets are next to Registration."],
+                        [{"who": "you", "text": "hello"}, {"who": "me", "text": "Hello!"}])
+    assert out["ok"] and "Consultation" in out["reply"]
+    assert '"queue_number": "1001"' in sent["system"] and "Mr Tan" not in sent["system"]      # queue number only
+    assert sent["messages"][-1] == {"role": "user", "content": "where do I go?"}
+    assert [m["role"] for m in sent["messages"]] == ["user", "assistant", "user"]

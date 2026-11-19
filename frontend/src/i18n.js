@@ -32,6 +32,7 @@ export const TURN = {
 
 export const T = {
   en: {
+    takeover: "I was nearby and free, so I am taking over your journey.",
     hello: "Hello", next: "Next", queue: "Queue number", ahead: "{n} patients ahead of you",
     wait: "Estimated wait about {n} minutes.", follow: "Please follow me to {p}.",
     waitAt: "Please wait at {p}. Staff will call your queue number.", at: "You are at {p}.",
@@ -47,6 +48,7 @@ export const T = {
     disclaimer: "Waiting times are estimates and may change. Staff decide clinical priority.",
   },
   zh: {
+    takeover: "我就在附近而且有空，现在由我继续带您。",
     hello: "您好", next: "下一步", queue: "排队号码", ahead: "您前面还有 {n} 位病人",
     wait: "预计等候约 {n} 分钟。", follow: "请跟我到{p}。",
     waitAt: "请在{p}等候。工作人员会叫您的排队号码。", at: "您现在在{p}。",
@@ -62,6 +64,7 @@ export const T = {
     disclaimer: "等候时间仅为估计，可能会改变。临床优先次序由医护人员决定。",
   },
   ms: {
+    takeover: "Saya berdekatan dan lapang, jadi saya akan teruskan perjalanan anda.",
     hello: "Helo", next: "Seterusnya", queue: "Nombor giliran", ahead: "{n} pesakit di hadapan anda",
     wait: "Anggaran masa menunggu kira-kira {n} minit.", follow: "Sila ikut saya ke {p}.",
     waitAt: "Sila tunggu di {p}. Kakitangan akan memanggil nombor giliran anda.", at: "Anda berada di {p}.",
@@ -77,6 +80,7 @@ export const T = {
     disclaimer: "Masa menunggu ialah anggaran dan boleh berubah. Keutamaan klinikal ditentukan oleh kakitangan.",
   },
   ta: {
+    takeover: "நான் அருகில் இருக்கிறேன், இப்போது நான் உங்களை அழைத்துச் செல்கிறேன்.",
     hello: "வணக்கம்", next: "அடுத்தது", queue: "வரிசை எண்", ahead: "உங்களுக்கு முன்னால் {n} பேர் உள்ளனர்",
     wait: "காத்திருப்பு நேரம்: சுமார் {n} நிமிடங்கள்.", follow: "என்னைப் பின்தொடருங்கள்: {p}",
     waitAt: "இங்கே காத்திருக்கவும்: {p}. உங்கள் வரிசை எண் அழைக்கப்படும்.", at: "நீங்கள் இருக்கும் இடம்: {p}",

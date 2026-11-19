@@ -13,8 +13,8 @@ const STORY = [                                        // the demo story: run in
 ];
 const MORE = [                                         // extra scenes, after the story (press Reset demo first)
   [6, "Patient checks in"],
-  [7, "Pre-op test order"],
-  [8, "Test-room congestion"],
+  [7, "Another patient: pre-op test order first"],
+  [8, "ECG room congestion"],
   [9, "Blood-test room closes"],
   [10, "Corridor blocked, reroute"],
 ];
@@ -329,8 +329,8 @@ export default function Presenter() {
         </span>
       </nav>
 
-      <nav className="scenes scenes-more" aria-label="More scenes">
-        <span className="scene-group-t">More scenes</span>
+      <nav className="scenes scenes-more" aria-label="Stress test scenes">
+        <span className="scene-group-t">Stress test scenes</span>
         {MORE.map(([n, t]) => <button key={n} className={scene?.scene === n ? "on" : ""} onClick={() => runScene(n)}><span className="scene-n">{n}</span>{t}</button>)}
       </nav>
 

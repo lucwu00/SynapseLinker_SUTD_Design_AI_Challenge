@@ -387,8 +387,8 @@ def test_table_scenes_8_and_9(table_svc):
     demo.s9(svc)
     _drive(svc)
     p = svc._patient("ORTHO_201")
-    assert p["status"] == "QUEUED" and p["assigned_room"] == "ROOM_C"
-    assert ("C_BR", "START") in svc.planner.blocked or ("START", "C_BR") in svc.planner.blocked
+    assert p["status"] == "QUEUED" and p["assigned_room"] == "ROOM_B"
+    assert ("C_TL", "J_L") in svc.planner.blocked                       # went through the middle corridor instead
     types = [e["type"] for e in svc.db.query("SELECT type FROM events")]
     assert "CORRIDOR_BLOCKED" in types and "REROUTED" in types
 
@@ -401,6 +401,8 @@ def test_table_demo_story(table_svc):
     assert st("ORTHO_001")["status"] == "QUEUED" and st("ORTHO_001")["assigned_room"] == "ROOM_A"
     demo.scene(svc, 2)
     assert st("ORTHO_101")["assigned_room"] == "ROOM_B" and "ROOM_B" in svc.world["people"]
+    v = [r for r in svc.floor_map()["robots"] if r["robot_id"] == "EDi-02"]
+    assert v and v[0]["virtual"] and v[0]["route"][-1] == "S2"            # EDi-02 drawn walking her there
     demo.scene(svc, 3)
     assert st("ORTHO_001")["assigned_room"] == "ROOM_B"                 # system thinks X-ray Room 1 is free
     _drive(svc)
@@ -409,9 +411,31 @@ def test_table_demo_story(table_svc):
     assert st("ORTHO_101")["status"] == "QUEUED" and st("ORTHO_101")["assigned_room"] == "ROOM_A"
     assert st("ORTHO_101")["robot_id"] == "EDi-01"
     demo.scene(svc, 5)
-    assert st("ORTHO_001")["robot_id"] == "EDi-02" and svc.eligible(st("ORTHO_001")) == ["REVIEW"]
+    assert st("ORTHO_001")["robot_id"] is None and svc.eligible(st("ORTHO_001")) == ["REVIEW"]
+    svc.assign_robot("EDi-02", "ORTHO_001")                              # he types 1001 on EDi-02
+    assert svc.robot_session("EDi-02")["journey"]["patient"]["completed_steps"] == ["REGISTRATION", "CONSULT", "XRAY"]
     fm = svc.floor_map()
     assert {p["patient_id"]: p["room_id"] for p in fm["patients"]}["ORTHO_101"] == "ROOM_A"
+
+
+def test_table_scene10_moving_the_obstacle(table_svc):
+    """Scene 10: blocked between Station 3 and Station 2 -> middle corridor; move the trolley onto the
+    middle corridor -> the robot turns round again and takes the first route, now clear."""
+    svc = table_svc
+    demo.scene(svc, 10)
+    a, moved, n = svc.adapters["EDi-01"], False, 0
+    for _ in range(1200):
+        a.tick(0.5)
+        t = a.current
+        if not moved and t and t.route and t.route.nodes[0] == "J_L":
+            n += 1
+            if n == 4:
+                svc.set_obstacle("J_R", "J_L", True, exclusive=True)
+                moved = True
+        if a.get_robot_status().state.value == "ARRIVED":
+            break
+    assert moved and svc._patient("ORTHO_201")["assigned_room"] == "ROOM_B"
+    assert svc.world["obstacles"] == {("J_L", "J_R")} and svc.robot_heading["EDi-01"] == "C_TL"
 
 
 def test_esp32_radio_off_while_driving():

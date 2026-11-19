@@ -171,6 +171,7 @@ class ObstacleRequest(BaseModel):
     from_node: str
     to_node: str
     present: bool = True
+    exclusive: bool = False      # move the obstacle here: remove any others first
 
 
 class CorridorRequest(BaseModel):

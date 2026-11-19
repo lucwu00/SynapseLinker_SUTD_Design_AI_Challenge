@@ -33,7 +33,13 @@ def scene(svc: SynapseService, n: int) -> dict:
     extra = {6: s1, 7: s2, 8: s3, 9: s4, 10: s9}     # s5-s8 are covered by the story (still used by the tests)
     out = (story.get(n) or extra[n])(svc)
     out["scene"] = n
+    out["title"] = TITLES.get(n, out.get("title"))
     return out
+
+
+SCENE_NUMBERS = range(1, 11)
+TITLES = {6: "Patient checks in", 7: "Another patient: pre-op test order first", 8: "ECG room congestion",
+          9: "Blood-test room closes", 10: "Corridor blocked, reroute"}
 
 
 # ============================================================================ the demo story
@@ -97,6 +103,7 @@ def d2(svc):
         rec = _rec(svc, B)
         svc.confirm_destination(B, "XRAY", source="staff")
         svc.db.update("patients", "patient_id", B, assigned_room=room)
+        svc.show_virtual_walk("EDi-02", B, room)            # drawn on the floor map only; nothing on the table moves
         svc.arrive_at_station(B)                             # she is in the room; her X-ray is not started in the system yet
         svc.update_room(room, person_present=True)
     lbl = _room_label(svc, room)
@@ -105,7 +112,8 @@ def d2(svc):
                 narration=["Mr Tan is now with the doctor in Consultation Room 1.",
                            "Mdm Lee (queue 1002, pre-op knee) checks in. RULES: her pre-op test must be done before she "
                            "sees the doctor. Blood test and ECG are not on this table, so her test today is an X-ray.",
-                           f"EDi-01 is busy with Mr Tan, so EDi-02 (virtual assistant, second screen) shows her the way to {lbl}.",
+                           f"EDi-01 is busy with Mr Tan, so EDi-02 (virtual assistant) guides her to {lbl}. On the floor "
+                           "map EDi-02 walks her there on a dashed line; on the table only EDi-01 is real, so nothing moves.",
                            table + f"She is waiting inside {lbl}, but staff have not started her X-ray in the system yet, "
                                    "so the system still lists the room as FREE. Go to scene 3."])
 
@@ -141,7 +149,10 @@ def d4(svc):
     room = svc._patient(B).get("assigned_room") or _xray_room_1(svc)
     svc.complete_service(B, "XRAY")
     svc.update_room(room, person_present=False)
+    svc._event("ROBOT_CHOSEN", "system", "EDi-02 is now helping another patient at Registration. EDi-01 has just "
+               "dropped Mr Tan at X-ray Room 2, is nearby and free: EDi-01 takes over Mdm Lee", patient_id=B, robot_id="EDi-01")
     svc.assign_robot("EDi-01", B, force=True)
+    svc.robot_notes["EDi-01"] = (B, "takeover")
     if _status(svc, B) == "AWAITING_GUIDANCE":
         svc.confirm_destination(B, "CONSULT", robot_id="EDi-01", source="staff")
     p = svc._patient(B)
@@ -150,6 +161,8 @@ def d4(svc):
     return dict(title="B to consultation (EDi-01)",
                 narration=[table + "Mr Tan's X-ray has started in X-ray Room 2.",
                            "Mdm Lee's X-ray is done. RULES: her test is complete, so she may now see the doctor.",
+                           "EDi-02 has been taken by another patient at Registration. EDi-01 has just dropped Mr Tan at "
+                           "X-ray Room 2, so it is nearby and free.",
                            f"HANDOVER: EDi-01 takes over her journey (it was EDi-02's) and guides her to "
                            f"{_room_label(svc, p.get('assigned_room'))}. It chooses the route along the outside corners, "
                            "which it can follow reliably, and scans the room on arrival (free).",
@@ -157,23 +170,24 @@ def d4(svc):
 
 
 def d5(svc):
-    """Mr Tan's X-ray is done; EDi-02 takes over and answers him by voice."""
+    """Mr Tan's X-ray is done; he finds EDi-02 free and types his queue number; it picks up his journey."""
     _need(svc, A, ("QUEUED", "IN_SERVICE"), "Mr Tan is not at the X-ray - run scenes 1 to 4 first")
     if svc._patient(A)["assigned_destination"] != "XRAY":
         raise ServiceError("Mr Tan is not at the X-ray - run scenes 1 to 4 first", 409)
     svc.complete_service(A, "XRAY")
-    svc.assign_robot("EDi-02", A, force=True)
-    p = svc._patient(A); r = p["recommendation"] or {}
+    svc.db.update("robots", "robot_id", "EDi-02", patient_id=None)       # EDi-02 is free again
+    p = svc._patient(A)
     est = svc.journey(A).get("estimate") or {}
     return dict(title="A after X-ray: EDi-02 voice",
-                narration=["Mr Tan's X-ray is done. EDi-01 is busy with Mdm Lee, so EDi-02 (virtual assistant) takes over "
-                           "his journey: it already knows everything he has done today.",
+                narration=["Mr Tan's X-ray is done. EDi-01 is still busy with Mdm Lee, and EDi-02 is free again.",
+                           f"OPEN the EDi-02 screen (localhost:8000/#/robot/EDi-02) and type his queue number "
+                           f"{p.get('queue_no') or '1001'}, then press Find. EDi-02 picks up his whole journey: it already "
+                           "knows he has had his consultation and X-ray.",
                            f"Next for him: {', '.join(svc.eligible(p)) or '-'} (doctor review of the X-ray). "
                            f"Estimated time left: about {est.get('remaining_min', '?')} min, if the queues stay as they are.",
-                           "OPEN the EDi-02 screen (localhost:8000/#/robot/EDi-02), tap Ask me, and ask for example: "
-                           "'What is my next step?', 'How long will the rest of my visit take?', 'Where is the toilet?', "
-                           "or switch to 华文 and ask '我下一步去哪里？'. Open Conversation to show the transcript.",
-                           "End of the story. Scenes 6-10 are extra scenes (press Reset demo first)."])
+                           "Tap Ask me and ask, for example: 'What is my next step?', 'How long will the rest of my visit take?', "
+                           "'Can I go to the cafe while waiting?', or switch to 华文 and ask '我下一步去哪里？'.",
+                           "End of the story. Scenes 6-10 are stress test scenes (press Reset demo first)."])
 
 
 
@@ -237,7 +251,7 @@ def s3(svc):
     if not _exists(svc, "ORTHO_002"): s2(svc)
     before = _rec(svc, "ORTHO_002").get("recommended_sequence", [])
     choice = None
-    targets = sorted(before, key=lambda x: x != "ECG")                # the ECG story first, then any other test
+    targets = ["ECG"]                                                 # scene: ECG room congestion
     ok = [lambda tg, a: a.index(tg) > before.index(tg),               # 1st choice: the congested test moves later
           lambda tg, a: a != before and a.index(tg) >= before.index(tg)]  # else: it reshuffles the others
     for accept in ok:
@@ -433,9 +447,10 @@ def s9(svc):
                 narration=[f"Clean start. Closed rooms: {closed}. " + where + "The system does not know yet.",
                            f"EDi-01 sets off for {_label(svc, target)} on the shortest route "
                            f"{' -> '.join(t.route.nodes) if t else ''}.",
-                           f"WATCH: it detects the obstacle and stops. If it is still there after {wait} s, the robot turns "
-                           "round on the line and reports the corridor blocked; the planner sends it the other way, "
-                           "turning at the T-junctions into the alternative corridor.",
-                           "Remove the obstacle within the wait time and the robot simply continues.",
-                           "To show a completely blocked track, block the middle corridor too: there is no "
-                           "way left, so the robot stops and staff are alerted."])
+                           f"WATCH: it meets the obstacle and stops. Still there after {wait} s, so the robot turns round on "
+                           "the line, reports the corridor blocked, and the planner sends it through the middle connecting "
+                           "corridor instead.",
+                           "THEN: click the middle corridor on the floor map. The trolley moves there: the first corridor is "
+                           "clear again, the robot meets the new obstacle, turns round and takes the first route to "
+                           f"{_label(svc, target)}.",
+                           "Remove the obstacle within the wait time and the robot simply continues."])

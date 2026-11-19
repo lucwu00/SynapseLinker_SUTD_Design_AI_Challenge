@@ -155,6 +155,8 @@ class SynapseService:
                                                           "updated_at": now})
             # simulated physical world (only the simulated robot "sees" it; the backend learns via reports)
             self.world = {"obstacles": set(), "people": set()}
+            self.virtual_walks = {}
+            self.robot_notes = {}        # robot -> (patient, note shown on its screen), e.g. a takeover      # virtual robot -> the walk it is showing a patient on the floor map
             self.planner.blocked.clear()
             m = self.planner.map
             for room_id, r in m["rooms"].items():
@@ -760,6 +762,9 @@ class SynapseService:
         status = a.get_robot_status().to_dict() if a else {"robot_id": rid, "kind": r["kind"], "adapter": "none",
                                                            "state": "IDLE", "message": "Virtual assistant (no motion)"}
         out = dict(robot=status, patient_id=r["patient_id"], clinic_time=fmt_min(self.clock.now_min()))
+        note = self.robot_notes.get(rid)
+        if note and note[0] == r["patient_id"]:
+            out["note"] = note[1]
         if r["patient_id"]:
             j = self.journey(r["patient_id"])
             out["journey"] = j
@@ -967,13 +972,18 @@ class SynapseService:
             self.bus.publish({"type": "state", "reason": f"robot_{kind}"})
 
     # ------------------------------------------------------------------ floor: obstacles, corridors, rooms
-    def set_obstacle(self, a: str, b: str, present: bool) -> dict:
+    def set_obstacle(self, a: str, b: str, present: bool, exclusive: bool = False) -> dict:
         """SIMULATION ONLY: put/remove a physical obstacle on a tape segment. The planner does not know
         about it until the robot detects it and reports PATH_BLOCKED."""
         with self.lock:
             k = edge_key(a, b)
             if k not in {edge_key(e["from"], e["to"]) for e in self.planner.map["edges"]}:
                 raise ServiceError(f"No corridor {a}-{b} on the track", 404)
+            if present and exclusive:          # the trolley is moved: its old corridor is clear again
+                for o in list(self.world["obstacles"] - {k}):
+                    self.world["obstacles"].discard(o)
+                    self.planner.unblock(*o)
+                    self._event("OBSTACLE_REMOVED", "demo", f"Simulated obstacle moved away from corridor {o[0]}-{o[1]}")
             (self.world["obstacles"].add if present else self.world["obstacles"].discard)(k)
             if not present:
                 self.planner.unblock(a, b)
@@ -1027,6 +1037,42 @@ class SynapseService:
             self.reset()
             return self.floor_map()
 
+    VIRTUAL_WALK_S = 10.0
+
+    def show_virtual_walk(self, rid: str, pid: str, room: str, from_node: str | None = None):
+        """A virtual robot (screen) shows a patient the way: drawn on the floor map as a dashed route and
+        a marker that walks it. Nothing on the table moves."""
+        with self.lock:
+            src = from_node or self.planner.map["start_node"]
+            route = self.planner.plan_to_node(src, self.planner.room_node(room), self.planner.map["rooms"][room]["station"])
+            self.virtual_walks[rid] = dict(patient_id=pid, room=room, nodes=route.nodes, t0=time.time())
+            self._event("DIRECTIONS_SHOWN", "system", f"{rid} (virtual) walks {pid} to "
+                        f"{self.planner.map['rooms'][room]['label']} on screen via {' -> '.join(route.nodes)}",
+                        patient_id=pid, robot_id=rid)
+            self.bus.publish({"type": "state", "reason": "virtual_walk"})
+
+    def _virtual_robots(self) -> list:
+        m, out = self.planner.map, []
+        for rid, w in list(self.virtual_walks.items()):
+            p = self.db.one("SELECT robot_id, status FROM patients WHERE patient_id=?", (w["patient_id"],))
+            if not p or p["robot_id"] != rid or p["status"] not in ("GUIDED", "QUEUED", "IN_SERVICE"):
+                del self.virtual_walks[rid]          # the patient moved on, or another robot took over
+                continue
+            pts = [m["nodes"][n] for n in w["nodes"]]
+            segs = [math.hypot(b["x"] - a["x"], b["y"] - a["y"]) for a, b in zip(pts, pts[1:])]
+            total = sum(segs) or 1.0
+            f = min((time.time() - w["t0"]) / self.VIRTUAL_WALK_S, 1.0)
+            d, pos = f * total, dict(x=pts[-1]["x"], y=pts[-1]["y"])
+            for a, b, L in zip(pts, pts[1:], segs):
+                if d <= L:
+                    k = d / (L or 1)
+                    pos = dict(x=a["x"] + k * (b["x"] - a["x"]), y=a["y"] + k * (b["y"] - a["y"]))
+                    break
+                d -= L
+            out.append(dict(robot_id=rid, virtual=True, state="NAVIGATING" if f < 1 else "ARRIVED", position=pos,
+                            message=None, route=w["nodes"], patient_id=w["patient_id"]))
+        return out
+
     def floor_map(self) -> dict:
         m = self.planner.map
         rooms = {r["room_id"]: r for r in self.db.query("SELECT * FROM rooms")}
@@ -1041,6 +1087,7 @@ class SynapseService:
             robots.append(dict(robot_id=rid, state=st.state.value, position=pos, message=st.message,
                                route=t.route.nodes if t and t.route and t.state in ACTIVE_STATES else [],
                                patient_id=t.patient_id if t else None))
+        robots += self._virtual_robots()
         return dict(
             path=Path(m["_path"]).name, example=bool(m.get("_WARNING")), units=m["units"], frame=m["frame"],
             track_type=m.get("track_type", "graph"), table=m.get("table"), track=m.get("track"),

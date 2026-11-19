@@ -48,9 +48,11 @@ export default function FloorMap({ compact = false, masked = false }) {
   const S = table ? 480 / table.w : 120, W = (maxX - minX) * S, H = (maxY - minY) * S;
   const px = (x) => (x - minX) * S, py = (y) => (maxY - y) * S;
   const node = Object.fromEntries(m.nodes.map((n) => [n.id, n]));
-  const robot = m.robots.find((r) => r.position) || null;
-  const route = robot?.route || [];
-  const onRoute = (a, b) => route.some((n, i) => (n === a && route[i + 1] === b) || (n === b && route[i + 1] === a));
+  const bots = m.robots.filter((r) => r.position);
+  const robot = bots.find((r) => !r.virtual) || null;                 // the real robot on the table
+  const vbots = bots.filter((r) => r.virtual);                        // virtual robots walking a patient on screen
+  const inRoute = (route, a, b) => (route || []).some((n, i) => (n === a && route[i + 1] === b) || (n === b && route[i + 1] === a));
+  const onRoute = (a, b) => inRoute(robot?.route, a, b);
 
   const canEdit = m.simulated_world && !compact;
   const R = m.track?.corner_radius_m || 0;
@@ -65,7 +67,7 @@ export default function FloorMap({ compact = false, masked = false }) {
     return { x: (q.x - p.x) / L, y: (q.y - p.y) / L };
   };
   const toggleObstacle = (e) =>
-    api("/navigation/obstacles", "POST", { from_node: e.from, to_node: e.to, present: !e.obstacle }).then(setM).catch((x) => setErr(x.message));
+    api("/navigation/obstacles", "POST", { from_node: e.from, to_node: e.to, present: !e.obstacle, exclusive: true }).then(setM).catch((x) => setErr(x.message));
   const strip = (n) => (n || "").replace(/\s*\(fictional\)/i, "");
   const pts = m.patients || [];
   const where = (p) => {
@@ -82,7 +84,7 @@ export default function FloorMap({ compact = false, masked = false }) {
       {!compact && (
         <p className="small muted">
           {m.example ? "Example track: replace with your measured tape layout (config/classroom_map.json)." : `Track: ${m.path}`}{" "}
-          {m.simulated_world && "Click a corridor to place a simulated obstacle."}
+          {m.simulated_world && "Click a corridor to put the simulated obstacle there (it moves from where it was)."}
         </p>
       )}
       <div className="floor-wrap">
@@ -101,6 +103,7 @@ export default function FloorMap({ compact = false, masked = false }) {
             return (
               <g key={i} onClick={() => canEdit && toggleObstacle(e)} className={canEdit ? "trk-g" : ""}>
                 {shape(cls)}
+                {vbots.some((v) => inRoute(v.route, e.from, e.to)) && shape("trk-vroute")}
                 {canEdit && <g>{shape("trk-hit")}<title>{`${e.from}-${e.to}: ${e.obstacle ? "remove obstacle" : "place obstacle"}`}</title></g>}
                 {e.obstacle && <rect x={px(mid.x) - 11} y={py(mid.y) - 11} width="22" height="22" rx="3" className="obstacle" />}
               </g>
@@ -150,6 +153,12 @@ export default function FloorMap({ compact = false, masked = false }) {
               </g>
             );
           })}
+          {vbots.map((v) => (
+            <g key={v.robot_id}>
+              <circle cx={px(v.position.x)} cy={py(v.position.y)} r="10" className="vbot" />
+              <text x={px(v.position.x)} y={py(v.position.y) + 26} className="vbot-t">{v.robot_id} (virtual){v.patient_id ? ` + ${who(v.patient_id)}` : ""}</text>
+            </g>
+          ))}
           {robot?.position && (
             <g>
               <circle cx={px(robot.position.x)} cy={py(robot.position.y)} r="11" className={`bot bot-${robot.state.toLowerCase()}`} />

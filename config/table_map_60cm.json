@@ -171,16 +171,19 @@
   "room_zone_note": "Person block (about 4 x 4 x 8 cm) inside the drawn room, about 11 cm from the tape, level with the station bar.",
   "demo": {
     "scene9": {
-      "room": "ROOM_C",
+      "room": "ROOM_B",
       "edge": [
-        "START",
-        "C_BR"
+        "J_L",
+        "C_TL"
       ],
       "box": {
-        "x": 0.45,
-        "y": 0.05
+        "x": 0.05,
+        "y": 0.43
       },
-      "note": "Box on the bottom line, between START and the bottom-right corner."
+      "note": "Box on the left line between the middle T-junction and the top-left corner (between Station 3 and Station 2).",
+      "close_rooms": [
+        "ROOM_C"
+      ]
     }
   },
   "junction_turn_cost_m": 0.35

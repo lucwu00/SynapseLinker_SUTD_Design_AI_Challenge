@@ -191,7 +191,7 @@ def reload_map():
 
 @app.post("/navigation/obstacles")
 def obstacle(req: S.ObstacleRequest):
-    return svc.set_obstacle(req.from_node, req.to_node, req.present)
+    return svc.set_obstacle(req.from_node, req.to_node, req.present, exclusive=req.exclusive)
 
 
 @app.post("/navigation/corridors/clear")
@@ -270,8 +270,8 @@ def demo_reset():
 
 @app.post("/demo/scene/{n}")
 def demo_scene(n: int):
-    if n not in range(1, 10):
-        raise HTTPException(404, "Scenes are 1-9")
+    if n not in demo.SCENE_NUMBERS:
+        raise HTTPException(404, f"Scenes are {min(demo.SCENE_NUMBERS)}-{max(demo.SCENE_NUMBERS)}")
     return demo.scene(svc, n)
 
 

@@ -153,6 +153,7 @@ export default function RobotScreen({ robotId }) {
           {j.patients_ahead != null && p.status === "QUEUED" && <span className="ahead">{fill(t.ahead, { n: j.patients_ahead })}</span>}
         </div>
       )}
+      {p && s.note && p.status === "GUIDED" && <p className="takeover">{t[s.note] || s.note}</p>}
       <h1 className="headline">{headline}</h1>
       <p className="line">{line}</p>
 

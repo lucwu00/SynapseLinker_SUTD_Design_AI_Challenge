@@ -63,8 +63,10 @@ function StationCard({ s, act }) {
 const PRE_TESTS = ["XRAY", "PHLEBOTOMY", "ECG"];
 const POST_ORDERS = ["XRAY", "REVIEW", "CAST_ROOM", "DRESSING", "PROCEDURE", "PHARMACY"];
 
-/** Staff add or remove steps that are not done yet. The backend checks the workflow rules. */
+/** Staff add, remove or reorder (drag, or the arrows on a phone) the steps that are not done yet.
+ *  The backend checks the workflow rules; a step cannot move across the consultation. */
 function OrdersEditor({ p, act }) {
+  const [drag, setDrag] = useState(null);
   const left = [...p.completed_steps];
   const pending = [];
   p.required_steps.forEach((x) => { const i = left.indexOf(x); if (i >= 0) left.splice(i, 1); else pending.push(x); });
@@ -73,14 +75,29 @@ function OrdersEditor({ p, act }) {
   const busy = ["GUIDED", "QUEUED", "IN_SERVICE"].includes(p.status) ? p.assigned_destination : null;
   const addable = (consulted ? POST_ORDERS : PRE_TESTS).filter((x) => !pending.includes(x));
   const url = `/patients/${p.patient_id}/orders`;
+  const move = (from, to) => {
+    if (from == null || to == null || from === to || to < 0 || to >= pending.length) return;
+    const o = [...pending];
+    const [x] = o.splice(from, 1);
+    o.splice(to, 0, x);
+    act(url, { order: o, recorded_by: "Nurse" });
+  };
+  const locked = (x, i) => (x === busy && i === 0) || ["REGISTRATION", "CONSULT", "PAYMENT", "PHARMACY"].includes(x);
+  const ci = pending.indexOf("CONSULT");
+  const side = (i) => (ci < 0 ? 0 : i < ci ? -1 : 1);                 // steps never cross the consultation
+  const canSwap = (i, j) => j >= 0 && j < pending.length && !locked(pending[i], i) && !locked(pending[j], j) && side(i) === side(j);
   return (
     <div className="orders-edit">
-      <span className="small muted">Steps to do:</span>
+      <span className="small muted">Steps to do{pending.some((_, i) => canSwap(i, i + 1)) ? " (drag or use ‹ › to reorder)" : ""}:</span>
       {pending.map((x, i) => {
         const fixed = ["REGISTRATION", "CONSULT", "PAYMENT"].includes(x) || (x === busy && pending.indexOf(x) === i);
         return (
-          <span key={i} className={`chip ${x === busy ? "chip-now" : ""}`}>
+          <span key={`${x}-${i}`} className={`chip ${x === busy ? "chip-now" : ""} ${drag === i ? "chip-drag" : ""}`}
+                draggable={!locked(x, i)} onDragStart={() => setDrag(i)} onDragEnd={() => setDrag(null)}
+                onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (drag != null && !locked(x, i) && side(drag) === side(i)) move(drag, i); setDrag(null); }}>
+            {canSwap(i, i - 1) && <button className="chip-mv" aria-label={`Move ${LABEL[x]} earlier`} onClick={() => move(i, i - 1)}>‹</button>}
             {LABEL[x]}
+            {canSwap(i, i + 1) && <button className="chip-mv" aria-label={`Move ${LABEL[x]} later`} onClick={() => move(i, i + 1)}>›</button>}
             {!fixed && <button className="chip-x" aria-label={`Remove ${LABEL[x]}`} title="Remove this step"
                                onClick={() => act(url, { remove: [x], recorded_by: "Clinician" })}>×</button>}
           </span>
@@ -92,16 +109,62 @@ function OrdersEditor({ p, act }) {
           {addable.map((x) => <option key={x} value={x}>{LABEL[x]}</option>)}
         </select>
       )}
+      {p.order_locked && (
+        <span className="small">
+          <span className="pill-staff">Order set by staff</span>{" "}
+          <button onClick={() => act(url, { unlock: true, recorded_by: "Nurse" })}>Let the system choose</button>
+        </span>
+      )}
     </div>
+  );
+}
+
+/** Who goes first when several of our patients wait at the same station. The system suggests an order
+ *  (rules: staff priority, then mobility needs or age 80+, then longest wait); the nurse decides. */
+function StationQueues({ queues, patients, act }) {
+  const [drag, setDrag] = useState(null);
+  const shown = (queues || []).filter((q) => q.order.length > 1);
+  if (!shown.length) return (
+    <p className="small muted">Station queues: when two or more patients wait at the same station, the suggested order appears here and you can change who goes first.</p>
+  );
+  const name = (pid) => { const p = patients.find((x) => x.patient_id === pid); return p ? `${p.queue_no} ${maskName(p.display_name)}` : pid; };
+  return (
+    <section className="queues">
+      <h2>Who goes first</h2>
+      {shown.map((q) => {
+        const url = `/stations/${q.station_id}/queue-order`;
+        const move = (from, to) => {
+          if (from == null || to == null || from === to || to < 0 || to >= q.order.length) return;
+          const o = [...q.order]; const [x] = o.splice(from, 1); o.splice(to, 0, x);
+          act(url, { order: o, by: "Nurse" });
+        };
+        const why = Object.fromEntries(q.suggested.map((x) => [x.patient_id, x.reasons]));
+        const sug = q.suggested.map((x) => x.patient_id);
+        return (
+          <div key={q.station_id} className="queue">
+            <h3>{LABEL[q.station_id]} {q.manual ? <span className="pill-staff">order set by nurse</span> : <span className="small muted">suggested order</span>}</h3>
+            <ol>
+              {q.order.map((pid, i) => (
+                <li key={pid} draggable onDragStart={() => setDrag(i)} onDragEnd={() => setDrag(null)}
+                    onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); move(drag, i); setDrag(null); }}
+                    className={drag === i ? "chip-drag" : ""}>
+                  <button className="chip-mv" aria-label="Move up" disabled={i === 0} onClick={() => move(i, i - 1)}>▲</button>
+                  <button className="chip-mv" aria-label="Move down" disabled={i === q.order.length - 1} onClick={() => move(i, i + 1)}>▼</button>
+                  <strong>{name(pid)}</strong> <span className="small muted">{(why[pid] || []).join(", ")}</span>
+                </li>
+              ))}
+            </ol>
+            {q.manual && <p className="small">Suggested: {sug.map(name).join(" → ")} <button onClick={() => act(url, { order: [], by: "Nurse" })}>Use suggested order</button></p>}
+          </div>
+        );
+      })}
+    </section>
   );
 }
 
 function PatientRow({ p, robots, act }) {
   const rec = p.recommendation || {};
-  const [added, setAdded] = useState([]);
   const step = p.assigned_destination;
-  useEffect(() => setAdded([]), [p.patient_id, step]);   // orders belong to one consult only
-  const toggle = (x) => setAdded((a) => (a.includes(x) ? a.filter((y) => y !== x) : [...a, x]));
   const pid = p.patient_id;
   return (
     <article className={`patient ${p.escalated ? "patient-escalated" : ""}`}>
@@ -113,8 +176,13 @@ function PatientRow({ p, robots, act }) {
           <p className="muted small">
             {pid}, {VISIT[p.visit_type]}, {SUBSPECIALTY[p.referral_category] || p.referral_category}, age {p.age}
             {p.mobility !== "independent" && `, ${p.mobility.replace("_", " ")}`}
-            {p.clinician_priority === "expedited" && ", expedited by clinician"}
           </p>
+          <label className="small prio">Priority (nurse):{" "}
+            <select value={p.clinician_priority} onChange={(e) => act(`/patients/${pid}/priority`, { priority: e.target.value, by: "Nurse" })}>
+              <option value="routine">Routine</option>
+              <option value="expedited">Priority</option>
+            </select>
+          </label>
           </div>
         </div>
         <span className={`status status-${p.status.toLowerCase()}`}>{STATUS[p.status]}</span>
@@ -177,15 +245,7 @@ function PatientRow({ p, robots, act }) {
         {p.status === "QUEUED" && <button className="primary" onClick={() => act(`/patients/${pid}/service-started`)}>Start service</button>}
         {p.status === "IN_SERVICE" && (
           <>
-            {(step === "CONSULT" || step === "REVIEW") && (
-              <fieldset className="orders">
-                <legend className="small">Clinician orders</legend>
-                {["XRAY", "REVIEW", "CAST_ROOM", "DRESSING", "PROCEDURE", "PHARMACY"].map((x) => (
-                  <label key={x} className="small"><input type="checkbox" checked={added.includes(x)} onChange={() => toggle(x)} /> {LABEL[x]}</label>
-                ))}
-              </fieldset>
-            )}
-            <button className="primary" onClick={() => act(`/patients/${pid}/service-completed`, { step, added_steps: (step === "CONSULT" || step === "REVIEW") ? added : [] })}>
+            <button className="primary" onClick={() => act(`/patients/${pid}/service-completed`, { step, added_steps: [] })}>
               Complete {LABEL[step]}
             </button>
           </>
@@ -358,6 +418,7 @@ export default function Presenter() {
           <h2>Patients</h2>
           {s.patients.length === 0 && <p className="empty">No patients yet. Run scene 1, or check one in.</p>}
           {s.patients.map((p) => <PatientRow key={p.patient_id} p={p} robots={s.robots} act={act} />)}
+          <StationQueues queues={s.station_queues} patients={s.patients} act={act} />
         </section>
       )}
 

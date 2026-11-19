@@ -47,7 +47,21 @@ class ServiceCompletedRequest(BaseModel):
 class OrdersRequest(BaseModel):
     add: list[Step] = []
     remove: list[Step] = []
+    order: Optional[list[Step]] = None      # the steps still to do, in the order staff want (drag and drop)
+    unlock: bool = False                    # let the system choose the order again
     recorded_by: str = Field("Clinician", max_length=40)
+
+
+class PriorityRequest(BaseModel):
+    """Set by a nurse or clinician, never by the AI."""
+    priority: str = Field(pattern="^(routine|expedited)$")
+    by: str = Field("Nurse", max_length=40)
+
+
+class QueueOrderRequest(BaseModel):
+    """Who goes first at a station. Empty list: follow the suggested order again."""
+    order: list[str] = []
+    by: str = Field("Nurse", max_length=40)
 
 
 class EscalateRequest(BaseModel):

@@ -41,7 +41,9 @@ POST_CONSULT = {"XRAY", "REVIEW", "CAST_ROOM", "DRESSING", "PROCEDURE", "PHARMAC
 POST_ORDER = ["XRAY", "REVIEW", "CAST_ROOM", "DRESSING", "PROCEDURE", "PHARMACY"]   # phase order R07-R12
 PRE_CONSULT = ["XRAY", "PHLEBOTOMY", "ECG"]
 FIXED_STEPS = {"REGISTRATION", "CONSULT", "PAYMENT"}
-LABEL_TXT = {"REGISTRATION": "Registration", "CONSULT": "Consultation", "PAYMENT": "Payment"}
+LABEL_TXT = {"REGISTRATION": "Registration", "CONSULT": "Consultation", "PAYMENT": "Payment", "XRAY": "X-ray",
+             "PHLEBOTOMY": "Blood test", "ECG": "ECG", "REVIEW": "Doctor review", "CAST_ROOM": "Cast room",
+             "DRESSING": "Dressing room", "PROCEDURE": "Procedure room", "PHARMACY": "Pharmacy"}
 ACTIVE_PATIENT = ("AWAITING_GUIDANCE", "GUIDED", "QUEUED", "IN_SERVICE", "ESCALATED")
 
 
@@ -157,7 +159,9 @@ class SynapseService:
             self.world = {"obstacles": set(), "people": set()}
             self.virtual_walks = {}
             self.robot_notes = {}
-            self.pickups = {}            # task id -> patient: the robot is driving to collect them (no guiding yet)        # robot -> (patient, note shown on its screen), e.g. a takeover      # virtual robot -> the walk it is showing a patient on the floor map
+            self.pickups = {}
+            self.order_locked = set()    # patients whose step order staff set by hand (the router follows it)
+            self.queue_override = {}     # station -> patient ids in the order staff chose            # task id -> patient: the robot is driving to collect them (no guiding yet)        # robot -> (patient, note shown on its screen), e.g. a takeover      # virtual robot -> the walk it is showing a patient on the floor map
             self.planner.blocked.clear()
             m = self.planner.map
             for room_id, r in m["rooms"].items():
@@ -258,7 +262,116 @@ class SynapseService:
         return self.rules.build_stages(p["required_steps"], p["visit_type"])
 
     def eligible(self, p) -> list[str]:
-        return eligible_next(self._stages(p), p["completed_steps"])
+        el = eligible_next(self._stages(p), p["completed_steps"])
+        if p["patient_id"] in getattr(self, "order_locked", ()) and len(el) > 1:
+            return [next(x for x in self._pending(p) if x in el)]     # staff fixed the order: next one only
+        return el
+
+    @staticmethod
+    def _pending(p) -> list[str]:
+        left, out = list(p["completed_steps"]), []
+        for x in p["required_steps"]:
+            if x in left:
+                left.remove(x)
+            else:
+                out.append(x)
+        return out
+
+    def reorder_steps(self, pid: str, order: list[str] | None, by: str = "Nurse", unlock: bool = False) -> dict:
+        """Staff drag the steps still to do into a new order. The workflow rules still apply, a step cannot
+        move across the consultation, and the step the patient is at or going to stays first."""
+        with self.lock:
+            p = self._patient(pid)
+            if unlock:
+                self.order_locked.discard(pid)
+                self._event("ORDER_UNLOCKED", "staff", f"{pid}: {by} let the system choose the order again", patient_id=pid)
+                self.db.update("patients", "patient_id", pid, recommendation=None, updated_at=time.time())
+                self.refresh("order_unlocked")
+                return self.journey(pid)
+            pend = self._pending(p)
+            if sorted(order or []) != sorted(pend):
+                raise ServiceError("The new order must contain exactly the steps still to do", 422)
+            busy = p["assigned_destination"] if p["status"] in ("GUIDED", "QUEUED", "IN_SERVICE") else None
+            if busy and order[0] != busy:
+                raise ServiceError(f"{LABEL_TXT.get(busy, busy)} is in progress and stays first", 409)
+            side = lambda seq: [s for s in seq[:seq.index("CONSULT")]] if "CONSULT" in seq else None
+            if "CONSULT" in pend and sorted(side(order)) != sorted(side(pend)):
+                raise ServiceError("A step cannot move across the consultation: tests before it are pre-consult, "
+                                   "steps after it are the doctor's orders", 422)
+            left, done = list(p["completed_steps"]), []
+            for x in p["required_steps"]:
+                if x in left:
+                    left.remove(x); done.append(x)
+            req = done + list(order)
+            try:
+                self.rules.build_stages(req, p["visit_type"])
+            except ValueError as e:
+                raise ServiceError(f"That order breaks the workflow rules: {e}", 422)
+            self.order_locked.add(pid)
+            self.db.update("patients", "patient_id", pid, required_steps=req, updated_at=time.time(),
+                           **({"recommendation": None} if p["status"] == "AWAITING_GUIDANCE" else {}))
+            self._event("ORDER_SET_BY_STAFF", "staff", f"{pid}: {by} set the order "
+                        f"{' -> '.join(LABEL_TXT.get(x, x) for x in order)}", patient_id=pid)
+            self.refresh("order_set")
+            return self.journey(pid)
+
+    def set_priority(self, pid: str, priority: str, by: str = "Nurse") -> dict:
+        with self.lock:
+            self._patient(pid)
+            self.db.update("patients", "patient_id", pid, clinician_priority=priority, updated_at=time.time())
+            self._event("PRIORITY_SET", "staff", f"{pid}: {by} set priority to "
+                        f"{'PRIORITY (expedited)' if priority == 'expedited' else 'routine'}", patient_id=pid)
+            self.refresh("priority")
+            return self.journey(pid)
+
+    # ------------------------------------------------------------------ who goes first at a station
+    def _waiting_at(self, station: str) -> list[dict]:
+        rows = self.db.query("SELECT q.*, p.clinician_priority, p.mobility, p.age, p.queue_no, p.display_name, "
+                             "p.checked_in_min FROM queue_entries q JOIN patients p ON p.patient_id=q.patient_id "
+                             "WHERE q.station_id=? AND q.started_min IS NULL AND q.ended_min IS NULL", (station,))
+        return rows
+
+    def suggested_queue(self, station: str) -> list[dict]:
+        """Suggested order (rules, not ML): priority set by staff first, then patients with mobility needs
+        or aged 80+, then whoever has waited longest. Staff can always change it."""
+        now = self.clock.now_min()
+        out = []
+        for r in self._waiting_at(station):
+            reasons = []
+            if r["clinician_priority"] == "expedited":
+                reasons.append("priority (set by staff)")
+            needs = r["mobility"] != "independent" or int(r["age"]) >= 80
+            if needs:
+                reasons.append(r["mobility"].replace("_", " ") if r["mobility"] != "independent" else f"age {r['age']}")
+            waited = now - r["joined_min"]
+            reasons.append(f"waited {round(waited)} min")
+            out.append(dict(patient_id=r["patient_id"], queue_no=r["queue_no"], doctor_id=r["doctor_id"],
+                            key=(r["clinician_priority"] != "expedited", not needs, r["joined_min"]), reasons=reasons))
+        out.sort(key=lambda x: x["key"])
+        for x in out:
+            x.pop("key")
+        return out
+
+    def queue_order(self, station: str) -> list[str]:
+        sug = [x["patient_id"] for x in self.suggested_queue(station)]
+        man = [x for x in self.queue_override.get(station, []) if x in sug]
+        return man + [x for x in sug if x not in man]
+
+    def set_queue_order(self, station: str, order: list[str], by: str = "Nurse") -> dict:
+        with self.lock:
+            self._station(station)
+            if not order:
+                self.queue_override.pop(station, None)
+                self._event("QUEUE_ORDER", "staff", f"{station}: {by} went back to the suggested order", station_id=station)
+            else:
+                waiting = {x["patient_id"] for x in self.suggested_queue(station)}
+                if set(order) - waiting:
+                    raise ServiceError(f"Not waiting at {station}: {sorted(set(order) - waiting)}", 422)
+                self.queue_override[station] = list(order)
+                self._event("QUEUE_ORDER", "staff", f"{station}: {by} set who goes first: {' -> '.join(order)}",
+                            station_id=station)
+            self.refresh("queue_order")
+            return {"station": station, "order": self.queue_order(station)}
 
     # ================================================================== live state -> features
     def station_views(self, now: float) -> tuple[dict, dict]:
@@ -390,6 +503,13 @@ class SynapseService:
         pv["CONSULT"] = dv
         ctx = self.clinic_context(now, views, doc)
         rec = self.engine.recommend(self.patient_context(p, now), pv, ctx, explain=explain, bn_stations=views)
+        el = self.eligible(p)
+        if p["patient_id"] in self.order_locked and rec.get("status") == "ROUTE" and el and rec.get("recommended_station") != el[0]:
+            sug = rec.get("recommended_station")
+            rec.update(recommended_station=el[0], decision_source="staff",
+                       recommended_sequence=[x for x in self._pending(p) if x in (rec.get("recommended_sequence") or [])] or [el[0]],
+                       explanation=f"Order set by staff: {LABEL_TXT.get(el[0], el[0])} next. The system would have suggested "
+                                   f"{LABEL_TXT.get(sug, sug)} (shortest predicted time); staff decide.")
         rec["computed_at"] = fmt_min(now)
         old = p.get("recommendation") or {}
         self.db.update("patients", "patient_id", p["patient_id"], recommendation=rec, updated_at=time.time())
@@ -449,7 +569,7 @@ class SynapseService:
     def journey(self, pid: str) -> dict:
         p = self._patient(pid)
         stages = self._stages(p)
-        el = eligible_next(stages, p["completed_steps"]) if p["status"] != "COMPLETED" else []
+        el = self.eligible(p) if p["status"] != "COMPLETED" else []
         rem = [s for st in remaining_stages(stages, p["completed_steps"]) for s in st]
         q = self.db.one("SELECT * FROM queue_entries WHERE patient_id=? AND ended_min IS NULL ORDER BY id DESC", (pid,))
         task = self.db.one("SELECT * FROM nav_tasks WHERE patient_id=? ORDER BY created_at DESC", (pid,))
@@ -466,9 +586,10 @@ class SynapseService:
             bq = st["background_queue"]
             if q["station_id"] == "CONSULT":
                 bq = round(bq / max(int(st["servers_on_duty"]), 1))
-            earlier = self.db.query("SELECT 1 FROM queue_entries WHERE station_id=? AND started_min IS NULL AND ended_min IS NULL "
-                                    "AND joined_min < ?" + (" AND doctor_id=?" if q["station_id"] == "CONSULT" else ""),
-                                    (q["station_id"], q["joined_min"]) + ((q["doctor_id"],) if q["station_id"] == "CONSULT" else ()))
+            order = self.queue_order(q["station_id"])
+            same_doc = {r["patient_id"] for r in self._waiting_at(q["station_id"])
+                        if q["station_id"] != "CONSULT" or r["doctor_id"] == q["doctor_id"]}
+            earlier = [x for x in order[:order.index(pid)] if x in same_doc] if pid in order else []
             ahead = (bq + len(earlier)) if q["started_min"] is None else 0
         room = self.db.one("SELECT room_id, label, classroom_label, node FROM rooms WHERE room_id=?",
                            (p["assigned_room"],)) if p.get("assigned_room") else None
@@ -1282,8 +1403,15 @@ class SynapseService:
                                                           "escalated", "escalation_reason", "required_steps",
                                                           "completed_steps", "recommendation", "updated_at")},
                                      eligible_now=j["eligible_now"], queue=j["queue"], patients_ahead=j["patients_ahead"],
+                                     order_locked=p["patient_id"] in self.order_locked,
                                      room=j["room"],
                                      minutes_in_clinic=round(now - p["checked_in_min"], 1)))
+            queues = []
+            for st in STATIONS:
+                sug = self.suggested_queue(st)
+                if sug:
+                    queues.append(dict(station_id=st, suggested=sug, order=self.queue_order(st),
+                                       manual=bool(self.queue_override.get(st))))
             robots = []
             for r in self.db.query("SELECT * FROM robots"):
                 a = self.adapters.get(r["robot_id"])
@@ -1297,7 +1425,7 @@ class SynapseService:
             alerts = self.db.query("SELECT * FROM alerts ORDER BY (acknowledged_by IS NOT NULL), id DESC LIMIT 40")
             for st in stations:
                 st["history"] = list(self.history.get(st["station_id"], []))
-            return dict(clock=self.clock.to_dict(), auto_dispatch=self.auto_dispatch, model_versions=self.predictor.versions,
+            return dict(clock=self.clock.to_dict(), auto_dispatch=self.auto_dispatch, station_queues=queues, model_versions=self.predictor.versions,
                         stations=stations, patients=patients, robots=robots, nav_tasks=tasks, events=events, alerts=alerts,
                         map=dict(path=Path(self.planner.map["_path"]).name, warning=self.planner.map.get("_WARNING")))
 

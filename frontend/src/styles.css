@@ -311,3 +311,11 @@ button.big { font-size: 1.3rem; min-height: 3.6rem; border-radius: var(--radius-
 .vbot-t { font-size: 12px; font-weight: 700; fill: var(--robot); text-anchor: middle; }
 .takeover { margin: .4rem 0 0; padding: .5rem .8rem; border-radius: 8px; background: #e8e4f6; color: var(--robot); font-weight: 700; }
 .ai-tag { font-weight: 500; opacity: .7; }
+.chip-mv { border: 0; background: transparent; padding: 0 .2rem; cursor: pointer; font-weight: 700; color: var(--muted); }
+.chip[draggable="true"] { cursor: grab; }
+.chip-drag { opacity: .45; }
+.pill-staff { font-size: .72rem; font-weight: 700; padding: .05rem .45rem; border-radius: 999px; background: #fdf0d5; color: #8a5a00; }
+.prio { display: inline-block; margin-top: .25rem; }
+.queues { margin-top: 1rem; }
+.queue ol { list-style: none; padding: 0; margin: .3rem 0; display: grid; gap: .3rem; }
+.queue li { display: flex; gap: .4rem; align-items: center; padding: .35rem .5rem; border-radius: 8px; background: var(--panel); cursor: grab; }

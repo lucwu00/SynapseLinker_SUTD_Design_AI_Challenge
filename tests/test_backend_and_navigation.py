@@ -586,3 +586,32 @@ def test_table_demo_story_with_manual_buttons(table_svc):
     svc.complete_service(A, "XRAY")                                      # scene 4 already started his X-ray
     demo.scene(svc, 5)
     assert svc.eligible(svc._patient(A)) == ["REVIEW"]
+
+
+def test_staff_drag_order_is_followed(svc):
+    svc.check_in(pre_op())
+    j = svc.reorder_steps("T1", ["ECG", "XRAY", "PHLEBOTOMY", "CONSULT", "PAYMENT"])
+    assert j["eligible_now"] == ["ECG"]                                        # router follows staff's order
+    assert svc._patient("T1")["recommendation"]["recommended_station"] == "ECG"
+    with pytest.raises(ServiceError):                                          # cannot cross the consultation
+        svc.reorder_steps("T1", ["ECG", "XRAY", "CONSULT", "PHLEBOTOMY", "PAYMENT"])
+    with pytest.raises(ServiceError):                                          # rules still apply
+        svc.reorder_steps("T1", ["ECG", "XRAY", "PHLEBOTOMY", "PAYMENT", "CONSULT"])
+    j = svc.reorder_steps("T1", None, unlock=True)
+    assert len(j["eligible_now"]) == 3
+
+
+def test_nurse_priority_and_queue_order(svc):
+    for pid in ("T1", "T2"):
+        svc.check_in(pre_op(pid))
+        svc.confirm_destination(pid, "XRAY")
+        svc.arrive_at_station(pid)
+    assert [x["patient_id"] for x in svc.suggested_queue("XRAY")] == ["T1", "T2"]       # first come
+    svc.set_priority("T2", "expedited")
+    assert svc.queue_order("XRAY") == ["T2", "T1"]                                      # staff priority first
+    assert svc.journey("T1")["patients_ahead"] == svc._station("XRAY")["background_queue"] + 1
+    svc.set_queue_order("XRAY", ["T1", "T2"])                                           # nurse overrides
+    assert svc.queue_order("XRAY") == ["T1", "T2"]
+    assert any(q["station_id"] == "XRAY" and q["manual"] for q in svc.dashboard_state()["station_queues"])
+    svc.set_queue_order("XRAY", [])
+    assert svc.queue_order("XRAY") == ["T2", "T1"]

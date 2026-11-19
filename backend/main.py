@@ -100,7 +100,19 @@ def service_completed(patient_id: str, req: S.ServiceCompletedRequest):
 
 @app.post("/patients/{patient_id}/orders")
 def change_orders(patient_id: str, req: S.OrdersRequest):
+    if req.order is not None or req.unlock:
+        return svc.reorder_steps(patient_id, req.order, req.recorded_by, unlock=req.unlock)
     return svc.change_orders(patient_id, req.add, req.remove, req.recorded_by)
+
+
+@app.post("/patients/{patient_id}/priority")
+def set_priority(patient_id: str, req: S.PriorityRequest):
+    return svc.set_priority(patient_id, req.priority, req.by)
+
+
+@app.post("/stations/{station_id}/queue-order")
+def set_queue_order(station_id: str, req: S.QueueOrderRequest):
+    return svc.set_queue_order(station_id, req.order, req.by)
 
 
 @app.post("/patients/{patient_id}/escalate")

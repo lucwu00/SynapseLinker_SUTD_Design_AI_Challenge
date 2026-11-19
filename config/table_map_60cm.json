@@ -15,7 +15,7 @@
   },
   "start_node": "START",
   "start_facing": "C_BL",
-  "robot_speed_m_s": 0.06,
+  "robot_speed_m_s": 0.08,
   "obstacle_wait_s": 5,
   "obstacle_detect_m": 0.06,
   "nodes": {

@@ -405,7 +405,8 @@ def test_table_demo_story(table_svc):
     v = [r for r in svc.floor_map()["robots"] if r["robot_id"] == "EDi-02"]
     assert v and v[0]["virtual"] and v[0]["route"][-1] == "S2"            # EDi-02 drawn walking her there
     demo.scene(svc, 3)
-    assert st("ORTHO_001")["assigned_room"] == "ROOM_B"                 # system thinks X-ray Room 1 is free
+    assert svc._patient("ORTHO_101")["status"] == "IN_SERVICE"            # clicking 3 started her X-ray
+    assert st("ORTHO_001")["assigned_room"] == "ROOM_C"                 # X-ray Room 1 occupied: straight to Room 2
     _drive(svc)
     assert st("ORTHO_001")["status"] == "QUEUED" and st("ORTHO_001")["assigned_room"] == "ROOM_C"
     demo.scene(svc, 4)
@@ -658,13 +659,24 @@ def test_esp32_story_with_staff_confirmations(monkeypatch):
     svc.arrive_at_station(A)
     demo.scene(svc, 2); demo.scene(svc, 3)
     a = svc.adapters["EDi-01"]
-    svc.robot_command("EDi-01", "report_arrival", a.current.task_id)              # X-ray Room 1: occupied
-    svc.arrive_at_station(A)
-    assert svc._patient(A)["assigned_room"] == "ROOM_C"
-    demo.scene(svc, 4)
+    assert svc._patient(A)["assigned_room"] == "ROOM_C"                            # Room 1 occupied (her X-ray)
+    demo.scene(svc, 4)                                                             # lands EDi-01 at Room 2 first
     assert svc._patient(B)["status"] == "GUIDED" and "S2" in a.current.route.nodes
     svc.arrive_at_station(B)                                                       # staff: EDi-01 brought her
     p = svc._patient(B)
     assert p["status"] == "QUEUED" and p["assigned_destination"] == "CONSULT" and p["assigned_room"] == "ROOM_A"
     assert a.get_robot_status().position == "S3"
     svc.stop()
+
+
+def test_floor_map_keeps_patients_and_draws_only_the_route_ahead(table_svc):
+    svc = table_svc
+    demo.scene(svc, 1)
+    for _ in range(6):
+        svc.adapters["EDi-01"].tick(0.5)
+    r = svc.floor_map()["robots"][0]
+    assert r["ahead"][0] == {"x": r["position"]["x"], "y": r["position"]["y"]} and "START" not in str(r["ahead"][1:2])
+    _drive(svc)
+    demo.scene(svc, 2); demo.scene(svc, 3); _drive(svc); demo.scene(svc, 4); _drive(svc); demo.scene(svc, 5)
+    rooms = {p["patient_id"]: p["room_id"] for p in svc.floor_map()["patients"]}
+    assert rooms == {"ORTHO_001": "ROOM_C", "ORTHO_101": "ROOM_A"}                 # both still on the map

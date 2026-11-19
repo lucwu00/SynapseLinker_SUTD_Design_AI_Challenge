@@ -50,9 +50,10 @@ export default function FloorMap({ compact = false, masked = false }) {
   const node = Object.fromEntries(m.nodes.map((n) => [n.id, n]));
   const bots = m.robots.filter((r) => r.position);
   const robot = bots.find((r) => !r.virtual) || null;                 // the real robot on the table
-  const vbots = bots.filter((r) => r.virtual);                        // virtual robots walking a patient on screen
-  const inRoute = (route, a, b) => (route || []).some((n, i) => (n === a && route[i + 1] === b) || (n === b && route[i + 1] === a));
-  const onRoute = (a, b) => inRoute(robot?.route, a, b);
+  const moving = (r) => r.ahead && r.ahead.length > 1;
+  // patients riding with a moving robot are shown on its label; everyone else stays at their room
+  const riding = new Set(bots.filter(moving).map((r) => r.patient_id).filter(Boolean));
+  const qn = (pid) => { const p = (m.patients || []).find((x) => x.patient_id === pid); return p?.queue_no ? `Q${p.queue_no}` : pid; };
 
   const canEdit = m.simulated_world && !compact;
   const R = m.track?.corner_radius_m || 0;
@@ -103,7 +104,6 @@ export default function FloorMap({ compact = false, masked = false }) {
             return (
               <g key={i} onClick={() => canEdit && toggleObstacle(e)} className={canEdit ? "trk-g" : ""}>
                 {shape(cls)}
-                {(onRoute(e.from, e.to) || vbots.some((v) => inRoute(v.route, e.from, e.to))) && shape("trk-vroute")}
                 {canEdit && <g>{shape("trk-hit")}<title>{`${e.from}-${e.to}: ${e.obstacle ? "remove obstacle" : "place obstacle"}`}</title></g>}
                 {e.obstacle && <rect x={px(mid.x) - 11} y={py(mid.y) - 11} width="22" height="22" rx="3" className="obstacle" />}
               </g>
@@ -141,6 +141,15 @@ export default function FloorMap({ compact = false, masked = false }) {
                   <text x={cx} y={cy + 12} className="room-s">{r.label}</text>
                   {r.zone && <rect x={px(r.zone.x) - 12} y={py(r.zone.y) - 12} width="24" height="24" rx="3"
                                    className={`zone ${r.person_present ? "zone-on" : ""}`}><title>{`${r.label}: place the person block here`}</title></rect>}
+                  {(m.patients || []).filter((p) => p.room_id === r.room_id && !riding.has(p.patient_id)).map((p, i, all) => {
+                    const tx = cx + (i - (all.length - 1) / 2) * 64, ty = oy > 0 ? cy - 40 : cy + 40;
+                    return (
+                      <g key={p.patient_id} className={`ptag ptag-${p.status.toLowerCase()}`}>
+                        <rect x={tx - 30} y={ty - 12} width="60" height="24" rx="12" />
+                        <text x={tx} y={ty + 5}>{qn(p.patient_id)}</text>
+                      </g>
+                    );
+                  })}
                 </g>
               );
             }
@@ -153,18 +162,19 @@ export default function FloorMap({ compact = false, masked = false }) {
               </g>
             );
           })}
-          {vbots.map((v) => (
-            <g key={v.robot_id}>
-              <circle cx={px(v.position.x)} cy={py(v.position.y)} r="10" className="vbot" />
-              <text x={px(v.position.x)} y={py(v.position.y) + 26} className="vbot-t">{v.robot_id} (virtual){v.patient_id ? ` + ${who(v.patient_id)}` : ""}</text>
+          {bots.filter(moving).map((r) => (
+            <polyline key={`route-${r.robot_id}`} className="trk-vroute" fill="none"
+                      points={r.ahead.map((q) => `${px(q.x).toFixed(1)},${py(q.y).toFixed(1)}`).join(" ")} />
+          ))}
+          {bots.map((r) => (
+            /* every robot, real or virtual, is drawn the same way: a soft dashed ball gliding along its route */
+            <g key={r.robot_id} className="ball" style={{ transform: `translate(${px(r.position.x).toFixed(1)}px, ${py(r.position.y).toFixed(1)}px)` }}>
+              <circle r="10" className={`vbot ${r.virtual ? "" : "vbot-real"} ${["BLOCKED", "EMERGENCY_STOP", "FAILED"].includes(r.state) ? "vbot-stop" : ""}`} />
+              <text y={r.virtual ? 26 : -16} className="vbot-t">
+                {r.robot_id}{r.virtual ? " (virtual)" : ""}{moving(r) && r.patient_id ? ` + ${qn(r.patient_id)}` : ""}
+              </text>
             </g>
           ))}
-          {robot?.position && (
-            <g>
-              <circle cx={px(robot.position.x)} cy={py(robot.position.y)} r="11" className={`bot bot-${robot.state.toLowerCase()}`} />
-              <text x={px(robot.position.x)} y={py(robot.position.y) - 16} className="bot-t">{robot.robot_id}{robot.patient_id && robot.route.length ? ` + ${who(robot.patient_id)}` : ""}</text>
-            </g>
-          )}
         </svg>
         {pts.length > 0 && (
           <ul className="pt-list">

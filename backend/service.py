@@ -160,7 +160,8 @@ class SynapseService:
             self.virtual_walks = {}
             self.robot_notes = {}
             self.pickups = {}
-            self.route_via = {}          # robot -> node its next route must pass (e.g. collect a patient on the way)
+            self.route_via = {}
+            self.last_room = {}          # patient -> room they were last in (to keep showing them on the map)          # robot -> node its next route must pass (e.g. collect a patient on the way)
             self.order_locked = set()    # patients whose step order staff set by hand (the router follows it)
             self.queue_override = {}     # station -> patient ids in the order staff chose            # task id -> patient: the robot is driving to collect them (no guiding yet)        # robot -> (patient, note shown on its screen), e.g. a takeover      # virtual robot -> the walk it is showing a patient on the floor map
             self.planner.blocked.clear()
@@ -746,6 +747,7 @@ class SynapseService:
             nxt = self.eligible(p2)
             status = "COMPLETED" if not nxt else "AWAITING_GUIDANCE"
             if p.get("assigned_room"):
+                self.last_room[pid] = p["assigned_room"]
                 self.db.update("rooms", "room_id", p["assigned_room"], occupied=0, occupancy_source="service completed",
                                updated_at=time.time())
             self.db.update("patients", "patient_id", pid, required_steps=req, completed_steps=done, status=status,
@@ -1284,7 +1286,9 @@ class SynapseService:
             pts = [m["nodes"][n] for n in w["nodes"]]
             segs = [math.hypot(b["x"] - a["x"], b["y"] - a["y"]) for a, b in zip(pts, pts[1:])]
             total = sum(segs) or 1.0
-            f = min((time.time() - w["t0"]) / self.VIRTUAL_WALK_S, 1.0)
+            f = min((time.time() - w["t0"]) * self.planner.map.get("robot_speed_m_s", 0.08) / total, 1.0)
+            if p["status"] == "IN_SERVICE":
+                f = 1.0                                     # she is being seen: the walk is over
             d, pos = f * total, dict(x=pts[-1]["x"], y=pts[-1]["y"])
             for a, b, L in zip(pts, pts[1:], segs):
                 if d <= L:
@@ -1295,6 +1299,22 @@ class SynapseService:
             out.append(dict(robot_id=rid, virtual=True, state="NAVIGATING" if f < 1 else "ARRIVED", position=pos,
                             message=None, route=w["nodes"], patient_id=w["patient_id"]))
         return out
+
+    def _remaining(self, nodes: list, pos: dict | None) -> list:
+        """The part of a route still ahead of `pos`: [pos, next node, ..., last node] as points."""
+        m = self.planner.map["nodes"]
+        pts = [m[n] for n in nodes if n in m]
+        if not pos or len(pts) < 2:
+            return [dict(x=p["x"], y=p["y"]) for p in pts]
+        best, bi = None, 0
+        for i, (a, b) in enumerate(zip(pts, pts[1:])):          # nearest segment to the marker
+            dx, dy = b["x"] - a["x"], b["y"] - a["y"]
+            L2 = dx * dx + dy * dy or 1e-9
+            k = max(0.0, min(1.0, ((pos["x"] - a["x"]) * dx + (pos["y"] - a["y"]) * dy) / L2))
+            d = math.hypot(a["x"] + k * dx - pos["x"], a["y"] + k * dy - pos["y"])
+            if best is None or d < best - 1e-9:
+                best, bi = d, i
+        return [dict(x=pos["x"], y=pos["y"])] + [dict(x=p["x"], y=p["y"]) for p in pts[bi + 1:]]
 
     def floor_map(self) -> dict:
         m = self.planner.map
@@ -1311,6 +1331,9 @@ class SynapseService:
                                route=t.route.nodes if t and t.route and t.state in ACTIVE_STATES else [],
                                patient_id=t.patient_id if t else None))
         robots += self._virtual_robots()
+        for r in robots:
+            moving = r["state"] in ("NAVIGATING", "BLOCKED") and r["route"]
+            r["ahead"] = self._remaining(r["route"], r["position"]) if moving else []
         return dict(
             path=Path(m["_path"]).name, example=bool(m.get("_WARNING")), units=m["units"], frame=m["frame"],
             track_type=m.get("track_type", "graph"), table=m.get("table"), track=m.get("track"),
@@ -1326,7 +1349,8 @@ class SynapseService:
                         person_present=k in self.world["people"]) for k, v in m["rooms"].items() if k in rooms],
             robots=robots, simulated_world=any(a.__class__.__name__ == "SimulationAdapter" for a in self.adapters.values()),
             patients=[dict(patient_id=p["patient_id"], name=p["display_name"], queue_no=p.get("queue_no"),
-                           status=p["status"], step=p["assigned_destination"], room_id=p["assigned_room"],
+                           status=p["status"], step=p["assigned_destination"],
+                           room_id=p["assigned_room"] or self.last_room.get(p["patient_id"]),
                            robot_id=p["robot_id"],
                            robot_kind=(self.cfg["robots"].get(p["robot_id"]) or {}).get("kind") if p["robot_id"] else None)
                       for p in (self._patient(r["patient_id"]) for r in

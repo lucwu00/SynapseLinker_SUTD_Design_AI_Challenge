@@ -221,7 +221,7 @@ export function answer(text, ctx, X) {
                        "止痛", "மருந்து", "நிவாரணி"]) && !(hit && hit.k.en.includes("pharmacy"));
   // results and diagnosis are always for the doctor, even inside an otherwise safe question ("is my X-ray result normal")
   const strict = has(t, ["result", "results", "normal", "diagnosis", "broken", "serious", "结果", "报告", "诊断", "keputusan", "முடிவு"]);
-  const medical = has(t, (MEDICAL[lang] || []).concat(lang === "en" ? [] : MEDICAL.en)) && (drug || strict || !(hit && hit.over));
+  const medical = strict || (has(t, (MEDICAL[lang] || []).concat(lang === "en" ? [] : MEDICAL.en)) && (drug || !(hit && hit.over)));
   const general = ["why", "is there", "do you have", "can i pay", "can my", "can i go", "can i leave", "can i step", "can i walk",
                    "while waiting", "during the wait", "period of wait", "miss my", "what if", "可以走开", "可以离开", "boleh keluar", "为什么", "有没有", "kenapa", "mengapa", "ada tak", "ஏன்", "உள்ளதா"];
   if (hit && !medical && has(t, general)) return { reply: hit.a[lang], action: null };

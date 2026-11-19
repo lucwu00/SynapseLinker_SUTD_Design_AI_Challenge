@@ -20,7 +20,7 @@ const URGENT = {
 const MEDICAL = {
   en: ["medicine", "medication", "dose", "dosage", "painkiller", "pain killer", "antibiotic", "side effect", "my result", "results",
        "diagnosis", "is it broken", "fracture", "surgery", "operation", "should i", "can i eat", "can i drink", "fast before", "fasting",
-       "allergic", "allergy", "pregnant", "how bad", "infection", "swelling", "pain"],
+       "allergic", "allergy", "pregnant", "how bad", "infection", "swelling", "pain", "broken", "my bone", "x-ray result", "is it serious"],
   zh: ["吃药", "药", "剂量", "止痛", "副作用", "结果", "报告", "诊断", "手术", "骨折", "怀孕", "过敏", "发炎", "肿", "痛", "可以吃", "空腹"],
   ms: ["ubat", "dos", "tahan sakit", "kesan sampingan", "keputusan", "diagnosis", "pembedahan", "patah", "hamil", "alahan", "bengkak", "sakit", "boleh makan", "puasa"],
   ta: ["மருந்து", "அளவு", "வலி நிவாரணி", "பக்க விளைவு", "முடிவு", "அறுவை", "எலும்பு முறிவு", "கர்ப்ப", "ஒவ்வாமை", "வீக்கம்", "வலி", "சாப்பிடலாமா", "உண்ணாவிரதம்"],
@@ -63,6 +63,20 @@ const INTENTS = {
 // a: the answer in each language. Translations are drafts: have native speakers check them.
 // over: the answer is itself safe for questions that also sound medical ("where do I collect my medicine").
 export const FAQ = [
+  { k: { en: ["miss my turn", "miss my queue", "missed my turn", "missed my number", "miss my number", "number was called"],
+         zh: ["过号", "错过", "叫号"], ms: ["terlepas giliran", "terlepas nombor"], ta: ["முறை தவற", "எண் தவற"] },
+    a: { en: "If you miss your queue number, tell the staff at the counter. They will put you back in the queue as soon as possible.",
+         zh: "如果您错过了叫号，请告诉柜台工作人员，他们会尽快帮您重新排队。",
+         ms: "Jika anda terlepas nombor giliran, beritahu kakitangan di kaunter. Mereka akan memasukkan anda semula ke dalam barisan secepat mungkin.",
+         ta: "உங்கள் வரிசை எண் தவறிவிட்டால், கவுண்டர் ஊழியரிடம் சொல்லுங்கள். அவர்கள் உங்களை விரைவில் மீண்டும் வரிசையில் சேர்ப்பார்கள்." } },
+  { k: { en: ["go somewhere", "somewhere else", "step away", "step out", "go out", "leave for a while", "leave the clinic", "walk around",
+               "while waiting", "while i wait", "during the wait", "period of wait", "come back later"],
+         zh: ["走开", "离开一下", "出去一下", "等的时候", "等候时"], ms: ["keluar sekejap", "tinggalkan klinik", "semasa menunggu"],
+         ta: ["வெளியே போக", "காத்திருக்கும்போது"] },
+    a: { en: "Yes, you can step away for a short while, for example to the toilet or the café. You keep your place in the queue. Please stay nearby and watch for your queue number; if you miss it, tell the staff at the counter. If you need to be away longer, let the staff know first.",
+         zh: "可以，您可以短暂离开，例如去厕所或咖啡馆，排队位置会保留。请留在附近并留意您的排队号码；如果错过了，请告诉柜台工作人员。如果要离开较久，请先告诉工作人员。",
+         ms: "Ya, anda boleh keluar sekejap, contohnya ke tandas atau kafe. Giliran anda tetap disimpan. Sila berada berdekatan dan perhatikan nombor giliran anda; jika terlepas, beritahu kakitangan di kaunter. Jika perlu keluar lebih lama, beritahu kakitangan dahulu.",
+         ta: "ஆம், சிறிது நேரம் வெளியே செல்லலாம், உதாரணமாகக் கழிப்பறை அல்லது உணவகத்துக்கு. வரிசையில் உங்கள் இடம் இருக்கும். அருகிலேயே இருந்து உங்கள் வரிசை எண்ணைக் கவனியுங்கள்; தவறினால் கவுண்டர் ஊழியரிடம் சொல்லுங்கள். நீண்ட நேரம் வெளியே இருக்க வேண்டுமானால் முதலில் ஊழியரிடம் சொல்லுங்கள்." } },
   { k: { en: ["toilet", "restroom", "washroom", "bathroom", "loo", "pee"], zh: ["厕所", "洗手间", "卫生间", "小便"],
          ms: ["tandas", "bilik air"], ta: ["கழிப்பறை", "கழிவறை"] },
     a: { en: "The toilets are next to the Registration counter. There is an accessible toilet beside them.",
@@ -143,7 +157,7 @@ export const FAQ = [
   { k: { en: ["smoke", "smoking"], zh: ["抽烟", "吸烟"], ms: ["merokok", "rokok"], ta: ["புகை"] },
     a: { en: "Smoking is not allowed anywhere in the hospital.", zh: "医院内全面禁烟。",
          ms: "Merokok tidak dibenarkan di mana-mana kawasan hospital.", ta: "மருத்துவமனையில் எங்கும் புகைபிடிக்கக் கூடாது." } },
-  { k: { en: ["opening hours", "what time do you close", "closing time", "open on"], zh: ["开放时间", "几点关门", "营业时间", "几点开"],
+  { k: { en: ["opening hours", "what time do you close", "closing time", "open on", "close", "closing", "open until", "what time does the clinic"], zh: ["开放时间", "几点关门", "营业时间", "几点开"],
          ms: ["waktu buka", "tutup pukul", "buka pukul"], ta: ["திறக்கும் நேரம்", "மூடும் நேரம்"] },
     a: { en: "The clinic runs from 8:30 am to 5 pm on weekdays. Please ask staff about Saturday sessions.",
          zh: "诊所于平日上午8时30分至下午5时开放。星期六的门诊请询问工作人员。",
@@ -156,6 +170,13 @@ export const FAQ = [
   {"k": {"en": ["medisave", "medishield", "cpf"], "zh": ["保健储蓄", "终身健保"], "ms": ["medisave", "medishield"], "ta": ["மெடிசேவ்", "மெடிஷீல்ட்"]}, "a": {"en": "For outpatient visits, Medisave can only be used for approved treatments and some long-term conditions. The Payment counter will tell you what can be claimed. Other charges are paid by NETS, card, PayNow or cash.", "zh": "门诊费用只有经批准的治疗和部分长期病症可以用保健储蓄支付。付款柜台会告诉您哪些可以申请，其余费用可用 NETS、信用卡、PayNow 或现金支付。", "ms": "Untuk lawatan pesakit luar, Medisave hanya boleh digunakan untuk rawatan yang diluluskan dan sesetengah penyakit jangka panjang. Kaunter Pembayaran akan memberitahu apa yang boleh dituntut. Caj lain dibayar dengan NETS, kad, PayNow atau tunai.", "ta": "வெளிநோயாளி வருகைகளுக்கு, அங்கீகரிக்கப்பட்ட சிகிச்சைகள் மற்றும் சில நீண்டகால நோய்களுக்கு மட்டுமே மெடிசேவ் பயன்படுத்தலாம். எதைக் கோரலாம் என்று கட்டணக் கவுண்டர் சொல்லும். மற்ற கட்டணங்களை NETS, அட்டை, PayNow அல்லது ரொக்கமாகச் செலுத்தலாம்."}},
   {"k": {"en": ["late", "missed my appointment", "running late", "too early", "came early"], "zh": ["迟到", "错过预约", "来早了"], "ms": ["lewat", "terlepas temujanji", "awal"], "ta": ["தாமதமாக", "சந்திப்பைத் தவற"]}, "a": {"en": "If you are late, please tell the Registration counter. You will be seen as soon as possible, but you may have to wait for the next free slot.", "zh": "如果您迟到了，请告诉登记柜台。我们会尽快安排您看诊，但您可能需要等下一个空档。", "ms": "Jika anda lewat, sila beritahu kaunter Pendaftaran. Anda akan dilihat secepat mungkin, tetapi mungkin perlu menunggu slot kosong seterusnya.", "ta": "தாமதமாக வந்திருந்தால், பதிவு கவுண்டரில் சொல்லுங்கள். கூடிய விரைவில் பார்க்கப்படுவீர்கள், ஆனால் அடுத்த காலியான நேரம் வரை காத்திருக்க வேண்டியிருக்கலாம்."}},
 ];
+
+const ASK_REPLY = {
+  en: "Of course. Ask me about your next step, how long you will wait, how long the whole visit will take, or the clinic (toilets, payment, parking, what to bring).",
+  zh: "当然可以。您可以问我下一步去哪里、要等多久、整个看诊要多久，或诊所的事情（厕所、付款、停车、要带什么）。",
+  ms: "Sudah tentu. Tanya saya tentang langkah seterusnya, berapa lama menunggu, berapa lama seluruh lawatan, atau tentang klinik (tandas, bayaran, letak kereta, apa perlu dibawa).",
+  ta: "நிச்சயமாக. உங்கள் அடுத்த படி, எவ்வளவு நேரம் காத்திருக்க வேண்டும், முழு வருகைக்கு எவ்வளவு நேரம், அல்லது மருத்துவமனை (கழிப்பறை, கட்டணம், வாகன நிறுத்தம், என்ன கொண்டு வர வேண்டும்) பற்றிக் கேளுங்கள்.",
+};
 
 const pick = (lang, key) => (INTENTS[key][lang] || []).concat(lang === "en" ? [] : INTENTS[key].en);
 
@@ -178,6 +199,10 @@ export function answer(text, ctx, X) {
   const greet = pick(lang, "hello").find((w) => t.startsWith(` ${w} `) || t.startsWith(` ${w}`) && !/^[\x00-\x7f]+$/.test(w));
   if (greet && t.trim().split(" ").length <= 4 && !has(t, pick(lang, "help")))
     return { reply: X.hello, action: null };
+  // "I want to ask" / "can I ask something" on its own: invite the question
+  const ASK = ["want to ask", "i have a question", "can i ask", "may i ask", "a question", "ask you", "ask something",
+               "我想问", "我有问题", "请问", "saya nak tanya", "saya ada soalan", "boleh saya tanya", "கேட்க வேண்டும்", "ஒரு கேள்வி"];
+  if (has(t, ASK) && t.trim().split(" ").length <= 6) return { reply: ASK_REPLY[lang] || ASK_REPLY.en, action: null };
   if (has(t, pick(lang, "total"))) return { reply: ctx.p ? totalReply(t, ctx, X) : X.noPatient, action: null };
   if (has(t, pick(lang, "after"))) return { reply: ctx.p ? afterReply(ctx, X) : X.noPatient, action: null };
   if (has(t, pick(lang, "where"))) return { reply: ctx.p ? ctx.say : X.here, action: null };
@@ -194,8 +219,11 @@ export function answer(text, ctx, X) {
   // questions about taking medicine are always medical - unless it is "where do I collect it" (pharmacy)
   const drug = has(t, ["medicine", "medication", "painkiller", "pain killer", "dose", "antibiotic", "pill", "ubat", "药",
                        "止痛", "மருந்து", "நிவாரணி"]) && !(hit && hit.k.en.includes("pharmacy"));
-  const medical = has(t, (MEDICAL[lang] || []).concat(lang === "en" ? [] : MEDICAL.en)) && (drug || !(hit && hit.over));
-  const general = ["why", "is there", "do you have", "can i pay", "can my", "为什么", "有没有", "kenapa", "mengapa", "ada tak", "ஏன்", "உள்ளதா"];
+  // results and diagnosis are always for the doctor, even inside an otherwise safe question ("is my X-ray result normal")
+  const strict = has(t, ["result", "results", "normal", "diagnosis", "broken", "serious", "结果", "报告", "诊断", "keputusan", "முடிவு"]);
+  const medical = has(t, (MEDICAL[lang] || []).concat(lang === "en" ? [] : MEDICAL.en)) && (drug || strict || !(hit && hit.over));
+  const general = ["why", "is there", "do you have", "can i pay", "can my", "can i go", "can i leave", "can i step", "can i walk",
+                   "while waiting", "during the wait", "period of wait", "miss my", "what if", "可以走开", "可以离开", "boleh keluar", "为什么", "有没有", "kenapa", "mengapa", "ada tak", "ஏன்", "உள்ளதா"];
   if (hit && !medical && has(t, general)) return { reply: hit.a[lang], action: null };
 
   if (!ctx.p && (has(t, pick(lang, "next")) || has(t, pick(lang, "wait")) || has(t, pick(lang, "left"))))

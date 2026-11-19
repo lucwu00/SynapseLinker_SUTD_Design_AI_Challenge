@@ -10,6 +10,7 @@ Autonomous operational inference loop (refresh):
     -> robot navigation task when a destination is confirmed and the patient is eligible
 """
 from __future__ import annotations
+import datetime
 import json
 import os
 import math
@@ -61,8 +62,19 @@ class DemoClock:
     def __init__(self, start: str, day_of_week: int, speed: float = 1.0):
         self.set(start, day_of_week, speed)
 
-    def set(self, start: str, day_of_week: int | None = None, speed: float | None = None):
+    SGT = datetime.timezone(datetime.timedelta(hours=8))     # Singapore time, also on a UTC server (Render)
+
+    def set(self, start: str, day_of_week=None, speed: float | None = None):
+        # "auto": start from the real Singapore time and weekday (config clinic_start / day_of_week)
+        real = datetime.datetime.now(self.SGT)
+        self.mode = "real" if start == "auto" else "set"
+        if start == "auto":
+            start = real.strftime("%H:%M")
+        if day_of_week == "auto":
+            day_of_week = real.weekday()
         self.base_min, self.real0 = hm_to_min(start), time.time()
+        if start == real.strftime("%H:%M"):
+            self.base_min += real.second / 60.0
         if day_of_week is not None: self.day_of_week = day_of_week
         if speed is not None: self.speed = speed
 
@@ -74,7 +86,7 @@ class DemoClock:
 
     def to_dict(self):
         return {"clinic_time": fmt_min(self.now_min()), "now_min": round(self.now_min(), 2),
-                "day_of_week": self.day_of_week, "speed": self.speed}
+                "day_of_week": self.day_of_week, "speed": self.speed, "mode": self.mode}
 
 
 class Broadcaster:
@@ -1091,6 +1103,8 @@ class SynapseService:
                 self.clock.set(cur, day_of_week, speed)
             if advance_min:
                 self.clock.advance(advance_min)
+            if clinic_time or advance_min or (speed is not None and speed != 1):
+                self.clock.mode = "set"
             self._event("CLOCK_SET", "demo", f"Clinic clock {fmt_min(self.clock.now_min())} x{self.clock.speed}")
             self.refresh("clock")
             return self.clock.to_dict()

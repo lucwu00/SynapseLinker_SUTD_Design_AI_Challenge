@@ -1,8 +1,11 @@
 {
   "_comment": "Demo backend settings. 'background' values simulate the rest of the clinic (other patients, other departments) so the trained models see realistic inputs; they are scenario inputs shown on the dashboard, not predictions.",
-  "clinic_start": "10:00",
-  "day_of_week": 1,
+  "clinic_start": "auto",
+  "day_of_week": "auto",
   "clock_speed": 1.0,
+  "_clock_comment": "auto = real Singapore time and weekday. The scripted demo scenes switch the clock to scenario_start / scenario_day_of_week (0 = Mon), the session they were tested for; Reset returns to real time. Remove scenario_start to keep real time in the scenes too.",
+  "scenario_start": "10:00",
+  "scenario_day_of_week": 1,
   "auto_dispatch": true,
   "tick_seconds": 0.5,
   "refresh_every_s": 10,

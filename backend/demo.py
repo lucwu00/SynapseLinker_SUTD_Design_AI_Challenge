@@ -28,6 +28,12 @@ def _rec(svc, pid):
 
 
 def scene(svc: SynapseService, n: int) -> dict:
+    # The scripted scenes were designed and tested for one clinic session (config scenario_start /
+    # scenario_day_of_week, Tue 10:00). The models depend on time of day, so at another real time the
+    # same story may not happen. When the clock is on real time, the first scene moves it to that session.
+    start = svc.cfg.get("scenario_start")
+    if start and svc.clock.mode == "real":
+        svc.set_clock(clinic_time=start, day_of_week=svc.cfg.get("scenario_day_of_week", 1))
     return {1: s1, 2: s2, 3: s3, 4: s4, 5: s5, 6: s6, 7: s7, 8: s8, 9: s9}[n](svc)
 
 

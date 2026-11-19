@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { api, useLive, LABEL, VISIT, SUBSPECIALTY, maskName, connectText } from "./api";
 import FloorMap from "./FloorMap";
 
@@ -51,6 +51,7 @@ function PatientDetail({ p, robots, act }) {
   const rec = p.recommendation || {};
   const [added, setAdded] = useState([]);
   const step = p.assigned_destination;
+  useEffect(() => setAdded([]), [p.patient_id, step]);   // orders belong to one consult only
   const pid = p.patient_id;
   const tog = (x) => setAdded((a) => (a.includes(x) ? a.filter((y) => y !== x) : [...a, x]));
   return (
@@ -92,8 +93,8 @@ function PatientDetail({ p, robots, act }) {
                 ))}
               </div>
             )}
-            <button className="o-btn o-btn-primary" onClick={() => act(`/patients/${pid}/service-completed`, { step, added_steps: added, recorded_by: "Duty staff" })}>
-              Complete {LABEL[step]}{added.length > 0 && ` + ${added.length} order${added.length > 1 ? "s" : ""}`}
+            <button className="o-btn o-btn-primary" onClick={() => act(`/patients/${pid}/service-completed`, { step, added_steps: (step === "CONSULT" || step === "REVIEW") ? added : [], recorded_by: "Duty staff" })}>
+              Complete {LABEL[step]}{(step === "CONSULT" || step === "REVIEW") && added.length > 0 && ` + ${added.length} order${added.length > 1 ? "s" : ""}`}
             </button>
           </>
         )}
@@ -149,7 +150,7 @@ export default function OpsBoard() {
         </div>
         <div className="o-clock">
           <span className="o-time">{s.clock.clinic_time}</span>
-          <span className="o-dim">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][s.clock.day_of_week]} {s.clock.speed !== 1 && `×${s.clock.speed}`}</span>
+          <span className="o-dim">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][s.clock.day_of_week]}{s.clock.mode === "set" && " (scenario)"} {s.clock.speed !== 1 && `×${s.clock.speed}`}</span>
           <span className={`o-live ${error ? "o-live-off" : ""}`}>{error ? "Offline" : "Live"}</span>
         </div>
       </header>

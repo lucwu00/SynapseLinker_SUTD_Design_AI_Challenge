@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, useLive, LABEL, VISIT, STATUS, SUBSPECIALTY, maskName, fmtMin, connectText } from "./api";
 import JourneyLine from "./JourneyLine";
 import Replay from "./Replay";
@@ -61,6 +61,7 @@ function PatientRow({ p, robots, act }) {
   const rec = p.recommendation || {};
   const [added, setAdded] = useState([]);
   const step = p.assigned_destination;
+  useEffect(() => setAdded([]), [p.patient_id, step]);   // orders belong to one consult only
   const toggle = (x) => setAdded((a) => (a.includes(x) ? a.filter((y) => y !== x) : [...a, x]));
   const pid = p.patient_id;
   return (
@@ -144,7 +145,7 @@ function PatientRow({ p, robots, act }) {
                 ))}
               </fieldset>
             )}
-            <button className="primary" onClick={() => act(`/patients/${pid}/service-completed`, { step, added_steps: added })}>
+            <button className="primary" onClick={() => act(`/patients/${pid}/service-completed`, { step, added_steps: (step === "CONSULT" || step === "REVIEW") ? added : [] })}>
               Complete {LABEL[step]}
             </button>
           </>
@@ -263,7 +264,7 @@ export default function Presenter() {
         </div>
         <div className="clock" aria-live="polite">
           <span className="clock-time">{s.clock.clinic_time}</span>
-          <span className="small muted">clinic time, {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][s.clock.day_of_week]}, speed ×{s.clock.speed}</span>
+          <span className="small muted">{s.clock.mode === "real" ? "real time" : "clinic time"}, {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][s.clock.day_of_week]}, speed ×{s.clock.speed}</span>
           <div className="row">
             <button onClick={() => act("/demo/clock", { advance_min: 15 })}>+15 min</button>
             <button onClick={() => act("/demo/clock", { speed: s.clock.speed === 1 ? 10 : 1 })}>{s.clock.speed === 1 ? "Run ×10" : "Real time"}</button>

@@ -408,8 +408,12 @@ def test_table_demo_story(table_svc):
     assert st("ORTHO_001")["assigned_room"] == "ROOM_B"                 # system thinks X-ray Room 1 is free
     _drive(svc)
     assert st("ORTHO_001")["status"] == "QUEUED" and st("ORTHO_001")["assigned_room"] == "ROOM_C"
-    demo.scene(svc, 4); _drive(svc)
+    demo.scene(svc, 4)
+    assert st("ORTHO_101")["assigned_room"] == "ROOM_B"                 # EDi-01 first goes to collect her
+    _drive(svc)
     assert st("ORTHO_101")["status"] == "QUEUED" and st("ORTHO_101")["assigned_room"] == "ROOM_A"
+    types = [e["type"] for e in svc.db.query("SELECT type FROM events")]
+    assert "PATIENT_COLLECTED" in types
     assert st("ORTHO_101")["robot_id"] == "EDi-01"
     demo.scene(svc, 5)
     assert st("ORTHO_001")["robot_id"] is None and svc.eligible(st("ORTHO_001")) == ["REVIEW"]

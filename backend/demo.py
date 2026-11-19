@@ -148,25 +148,24 @@ def d4(svc):
     _need(svc, B, ("QUEUED", "IN_SERVICE"), "Mdm Lee is not at the X-ray - run scene 2 first")
     room = svc._patient(B).get("assigned_room") or _xray_room_1(svc)
     svc.complete_service(B, "XRAY")
-    svc.update_room(room, person_present=False)
+    svc.db.update("patients", "patient_id", B, assigned_room=room)       # she is still standing in X-ray Room 1
     svc._event("ROBOT_CHOSEN", "system", "EDi-02 is now helping another patient at Registration. EDi-01 has just "
                "dropped Mr Tan at X-ray Room 2, is nearby and free: EDi-01 takes over Mdm Lee", patient_id=B, robot_id="EDi-01")
+    svc.fetch_patient("EDi-01", B)                                       # drive to X-ray Room 1 to collect her
     svc.assign_robot("EDi-01", B, force=True)
     svc.robot_notes["EDi-01"] = (B, "takeover")
-    if _status(svc, B) == "AWAITING_GUIDANCE":
-        svc.confirm_destination(B, "CONSULT", robot_id="EDi-01", source="staff")
-    p = svc._patient(B)
-    table = (f"ON THE TABLE: take the white block out of {_room_label(svc, room)}; Consultation Room 1 stays empty. "
-             if _physical(svc) else "")
+    lbl = _room_label(svc, room)
+    table = (f"ON THE TABLE: leave the white block in {lbl} until EDi-01 stops there, then take it out "
+             "(she walks with the robot). Consultation Room 1 stays empty. " if _physical(svc) else "")
     return dict(title="B to consultation (EDi-01)",
-                narration=[table + "Mr Tan's X-ray has started in X-ray Room 2.",
+                narration=["Mr Tan's X-ray has started in X-ray Room 2.",
                            "Mdm Lee's X-ray is done. RULES: her test is complete, so she may now see the doctor.",
                            "EDi-02 has been taken by another patient at Registration. EDi-01 has just dropped Mr Tan at "
                            "X-ray Room 2, so it is nearby and free.",
-                           f"HANDOVER: EDi-01 takes over her journey (it was EDi-02's) and guides her to "
-                           f"{_room_label(svc, p.get('assigned_room'))}. It chooses the route along the outside corners, "
-                           "which it can follow reliably, and scans the room on arrival (free).",
-                           "Go to scene 5 while it drives."])
+                           f"HANDOVER: EDi-01 takes over her journey (it was EDi-02's). It drives round the top-right corner "
+                           f"to {lbl} to collect her, then guides her on to Consultation Room 1 along the outer line and "
+                           "scans the room on arrival (free).",
+                           table + "Go to scene 5 while it drives."])
 
 
 def d5(svc):

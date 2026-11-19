@@ -156,7 +156,8 @@ class SynapseService:
             # simulated physical world (only the simulated robot "sees" it; the backend learns via reports)
             self.world = {"obstacles": set(), "people": set()}
             self.virtual_walks = {}
-            self.robot_notes = {}        # robot -> (patient, note shown on its screen), e.g. a takeover      # virtual robot -> the walk it is showing a patient on the floor map
+            self.robot_notes = {}
+            self.pickups = {}            # task id -> patient: the robot is driving to collect them (no guiding yet)        # robot -> (patient, note shown on its screen), e.g. a takeover      # virtual robot -> the walk it is showing a patient on the floor map
             self.planner.blocked.clear()
             m = self.planner.map
             for room_id, r in m["rooms"].items():
@@ -851,6 +852,33 @@ class SynapseService:
                         patient_id=pid, robot_id=rid, station_id=st)
             return self.db.one("SELECT * FROM nav_tasks WHERE task_id=?", (tid,))
 
+    def fetch_patient(self, rid: str, pid: str) -> dict:
+        """The robot drives on its own to the room where the patient is (no room scan), then guides them
+        from there to their next step."""
+        with self.lock:
+            p = self._patient(pid)
+            room = p.get("assigned_room")
+            if not room:
+                raise ServiceError(f"{pid} is not in a room on the track", 409)
+            a = self.adapters[rid]
+            here = self.planner.node_of(a.get_robot_status().position)
+            route = self.planner.plan_to_node(here, self.planner.room_node(room), "PICKUP",
+                                              heading_from=self.robot_heading.get(rid))
+            route.room_id = None                                    # nothing to scan: it knows she is there
+            self.task_seq += 1
+            tid = f"TASK_{self.run_tag}{self.task_seq:03d}"
+            st = self.planner.map["rooms"][room]["station"]
+            task = a.navigate(pid, st, tid, route)
+            now = time.time()
+            self.db.upsert("nav_tasks", "task_id", dict(task_id=tid, robot_id=rid, patient_id=pid, destination_station="PICKUP",
+                                                         room_id=room, state=task.state.value, command=task.command(),
+                                                         reason=None, created_at=now, updated_at=now))
+            self.pickups[tid] = (pid, room)
+            label = self.planner.map["rooms"][room]["label"]
+            self._event("NAV_TASK", "system", f"{tid}: {rid} going to collect {pid} from {label} "
+                        f"via {' -> '.join(route.nodes)}", patient_id=pid, robot_id=rid, station_id=st)
+            return self.db.one("SELECT * FROM nav_tasks WHERE task_id=?", (tid,))
+
     def _save_route(self, tid: str, a, room: str):
         t = a.tasks[tid]
         self.db.update("nav_tasks", "task_id", tid, state=t.state.value, room_id=room, command=t.command(),
@@ -899,6 +927,21 @@ class SynapseService:
 
     def _handle_arrival(self, a, data: dict):
         tid, pid = data["task_id"], data.get("patient_id")
+        if tid in self.pickups:                                     # collected the patient: now guide them
+            pid, room = self.pickups.pop(tid)
+            self.world["people"].discard(room)                      # she leaves the room with the robot
+            self._event("PATIENT_COLLECTED", "robot", f"{a.robot_id} collected {pid} at "
+                        f"{self.planner.map['rooms'][room]['label']}", robot_id=a.robot_id, patient_id=pid)
+            p = self._patient(pid)
+            nxt = self.eligible(p)
+            if p["status"] == "AWAITING_GUIDANCE" and nxt and p["robot_id"] == a.robot_id:
+                rec = p.get("recommendation") or {}
+                step = rec.get("recommended_station") if rec.get("recommended_station") in nxt else nxt[0]
+                try:
+                    self.confirm_destination(pid, step, robot_id=a.robot_id, source="autonomous")
+                except ServiceError as e:
+                    self._event("GUIDANCE_WAITING", "system", f"{pid}: {e}", patient_id=pid)
+            return
         room = data.get("room_id")
         if room and data.get("room_scan_reported", True):
             occ = bool(data.get("room_occupied"))

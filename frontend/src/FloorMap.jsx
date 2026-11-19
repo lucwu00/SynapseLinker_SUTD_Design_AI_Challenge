@@ -171,7 +171,8 @@ export default function FloorMap({ compact = false, masked = false }) {
             {pts.map((p) => (
               <li key={p.patient_id}>
                 <strong>{short(p)}</strong>{!masked && p.queue_no ? ` (${p.queue_no})` : ""}:{" "}
-                {p.status === "AWAITING_GUIDANCE" ? "next step being decided" : p.status === "GUIDED" ? `going to ${where(p)}`
+                {p.status === "AWAITING_GUIDANCE" && p.room_id ? `waiting in ${where(p)} for ${p.robot_id || "a robot"}`
+                  : p.status === "AWAITING_GUIDANCE" ? "next step being decided" : p.status === "GUIDED" ? `going to ${where(p)}`
                   : p.status === "QUEUED" ? `waiting in ${where(p)}` : p.status === "IN_SERVICE" ? `with staff in ${where(p)}` : p.status.toLowerCase()}
                 {p.robot_id && <span className={`pt-bot ${p.robot_kind === "virtual" ? "pt-virtual" : ""}`}>{p.robot_id}{p.robot_kind === "virtual" ? " (virtual, voice)" : ""}</span>}
               </li>

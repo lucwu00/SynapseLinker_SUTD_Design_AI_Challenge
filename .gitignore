@@ -8,3 +8,6 @@ firmware/sim/config.h
 firmware/sim/sim_bin
 firmware/sim/main.cpp
 firmware/sim/hw.cpp
+
+# personal robot settings (Wi-Fi password, laptop IP, calibration)
+firmware/*/config_local.h

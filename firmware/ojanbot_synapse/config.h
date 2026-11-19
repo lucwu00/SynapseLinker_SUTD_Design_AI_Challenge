@@ -5,14 +5,27 @@
 // ============================================================================
 #pragma once
 
+// YOUR settings (Wi-Fi, laptop address, calibration) go in config_local.h next to this file, NOT here:
+// copy config_local.example.h to config_local.h in BOTH sketch folders (ojanbot_synapse and ojanbot_hw_test).
+// config_local.h is never in the repo, so updating the code (git pull) never overwrites your settings.
+#if __has_include("config_local.h")
+#include "config_local.h"
+#endif
+
 // ---------------------------------------------------------------- network
 // Demo day: the system laptop runs the backend and a Windows Mobile Hotspot.
 // The ESP32 joins that hotspot (2.4 GHz only!).
+#ifndef WIFI_SSID
 #define WIFI_SSID      "SYNAPSE-DEMO"          // >>> CHECK  hotspot name
+#endif
+#ifndef WIFI_PASSWORD
 #define WIFI_PASSWORD  "change-me-123"         // >>> CHECK  hotspot password
+#endif
 // Laptop IP on its own hotspot is usually 192.168.137.1. No trailing slash.
 // A https:// Render URL also works but adds 0.3-1 s delay per poll; use the laptop on demo day.
+#ifndef BACKEND_URL
 #define BACKEND_URL    "http://192.168.137.1:8000"
+#endif
 #define ROBOT_ID       "EDi-01"
 
 #define POLL_INTERVAL_MS     600     // how often to ask for the next command
@@ -37,8 +50,12 @@
 #define PIN_R_EN   -1
 
 // If a wheel turns backwards when the test sketch says "forward", flip it here
+#ifndef INVERT_LEFT
 #define INVERT_LEFT   0                        // >>> CHECK
+#endif
+#ifndef INVERT_RIGHT
 #define INVERT_RIGHT  0                        // >>> CHECK
+#endif
 
 #define PWM_FREQ_HZ   20000
 #define PWM_BITS      8                        // duty 0..255
@@ -54,7 +71,9 @@
 #define LINE_MODE   LINE_MODE_ANALOG
 // hw test 'a' finds the pin. GPIO 32-39 (ADC1): Wi-Fi stays on. Any other ADC pin (ADC2, e.g. 15):
 // works too, but the robot turns Wi-Fi off while driving and reports when it stops (hw test 'o' checks it).
+#ifndef PIN_LINE_AN
 #define PIN_LINE_AN  15                        // >>> CHECK: our OjanBot's AN wire is on GPIO 15
+#endif
 #define AN_NO_LINE  0.10                       // below 10% of 3.3 V = no line (Maker Line datasheet)
 #define AN_CROSS    0.90                       // above 90% = all sensors on (station bar / top of a T)
 
@@ -90,17 +109,29 @@
                              // idle, solid = moving, fast blink = stopped/fault.)
 
 // ---------------------------------------------------------------- driving (tune on the table)
+#ifndef BASE_SPEED
 #define BASE_SPEED        120   // 0-255 while following the line. Start low; the table is small.
+#endif
 #define MAX_SPEED         170
+#ifndef KP
 #define KP                 38   // steering per unit of line error (error range -2..+2)
+#endif
+#ifndef KD
 #define KD                 60
+#endif
+#ifndef CM_PER_S
 #define CM_PER_S         14.0   // >>> CALIBRATE speed at BASE_SPEED on the line (hw test 'v'): used to know
+#endif
                                 //     roughly how far it has driven, so bends are not mistaken for junctions
 #define LINE_LOST_MS      450   // no sensor on black for this long -> stop and report ERROR
 
 // ---------------------------------------------------------------- turning on the spot
+#ifndef PIVOT_SPEED
 #define PIVOT_SPEED       115
+#endif
+#ifndef PIVOT_90_MS
 #define PIVOT_90_MS       430   // >>> CALIBRATE time for a 90 degree pivot at PIVOT_SPEED (hw test 'p')
+#endif
 #define LEAVE_LINE_MS     160   // a "turn until the line" must first spend this long off the line
 #define PIVOT_TIMEOUT_MS 3000   // never spin longer than this
 // A turn only accepts the line inside an angle window, so it cannot lock onto the wrong tape:
@@ -112,7 +143,9 @@
 // ---------------------------------------------------------------- recognising tape features
 // Station = short bar ACROSS the line (tape on both sides). Junction = a branch on ONE side, or
 // the top of a T (tape on both sides, and no line straight ahead).
+#ifndef SENSOR_AHEAD_CM
 #define SENSOR_AHEAD_CM   4.5   // >>> MEASURE distance from the sensor bar to the wheel axle
+#endif
 #define FEATURE_CONFIRM     2   // readings (5 ms apart) that must look like a feature
 #define FEATURE_END_READS   3   // readings back to a plain line that end the feature
 // Ignore feature-like patterns until this share of the expected distance is driven:
@@ -121,14 +154,20 @@
 #define FEATURE_MAX_CM         4.0   // a real crossing is one tape width; longer = a bend, ignored
 // After the sensors reach a feature, keep driving this long so the WHEELS (axle) stop on it.
 // About SENSOR_AHEAD_CM / (0.75 * CM_PER_S) seconds.  >>> CALIBRATE with hw test 'm'
+#ifndef MARK_CENTER_MS
 #define MARK_CENTER_MS    450
+#endif
 #define CHECK_LINE_AHEAD    1   // 1 = after stopping, check the line continues (station) or ends (top of a T)
 
 // ---------------------------------------------------------------- obstacle and room scan
+#ifndef OBSTACLE_CM
 #define OBSTACLE_CM          8    // stop if something is closer than this in front while driving
+#endif
 #define OBSTACLE_CONFIRM     3    // consecutive close readings needed (~70 ms apart)
 #define OBSTACLE_WAIT_MS  5000    // wait this long for it to clear before turning round
 #define CLEAR_CONFIRM        4    // consecutive far readings needed to call it cleared
+#ifndef OCCUPIED_CM
 #define OCCUPIED_CM         10    // room scan: something closer than this = room occupied
+#endif
 #define SCAN_MEASURE_MS    600    // how long to measure while facing the room
 #define US_MAX_CM           60    // ignore echoes beyond this (and timeouts)

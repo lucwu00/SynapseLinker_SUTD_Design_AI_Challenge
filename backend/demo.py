@@ -87,6 +87,7 @@ def d1(svc):
                            f"ML: predicted consultation wait {wait} min (Model A).",
                            f"AUTONOMOUS: EDi-01 guides him to {_room_label(svc, p.get('assigned_room'))}: straight, right at the "
                            "corner, stop on the bar, turn to scan the room (free), turn back.",
+                           "In the consultation the doctor will order an X-ray for him (scene 3).",
                            "When EDi-01 shows ARRIVED, go to scene 2."])
 
 
@@ -178,8 +179,10 @@ def d5(svc):
     p = svc._patient(A)
     est = svc.journey(A).get("estimate") or {}
     return dict(title="A after X-ray: EDi-02 voice",
-                narration=["Mr Tan's X-ray is done. EDi-01 is still busy with Mdm Lee, and EDi-02 is free again.",
-                           f"OPEN the EDi-02 screen (localhost:8000/#/robot/EDi-02) and type his queue number "
+                narration=["Mr Tan's X-ray is done and he comes out of X-ray Room 2. EDi-01 has gone with Mdm Lee, so "
+                           "he cannot see it. EDi-02 is on its way back to help Mdm Lee, but she is already with EDi-01, "
+                           "so Mr Tan takes over EDi-02.",
+                           f"The EDi-02 screen has opened in a new tab. Type his queue number "
                            f"{p.get('queue_no') or '1001'}, then press Find. EDi-02 picks up his whole journey: it already "
                            "knows he has had his consultation and X-ray.",
                            f"Next for him: {', '.join(svc.eligible(p)) or '-'} (doctor review of the X-ray). "

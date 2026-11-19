@@ -294,7 +294,10 @@ export default function Presenter() {
     }
   };
   const runScene = async (n) => {
+    // scene 5: Mr Tan walks up to EDi-02 - open its screen now (a new tab must open straight from the click)
+    const tab = n === 5 ? window.open("#/robot/EDi-02", "edi02") : null;
     const r = await act(`/demo/scene/${n}`);
+    if (!r && tab) tab.close();
     if (r) setScene(r);
   };
 

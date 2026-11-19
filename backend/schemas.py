@@ -17,7 +17,8 @@ HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
 
 
 class CheckInRequest(BaseModel):
-    patient_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,32}$", examples=["ORTHO_001"])
+    # letters, numbers, _ and -, with single spaces between words; blank = the next ORTHO_nnn
+    patient_id: Optional[str] = Field(None, max_length=32, pattern=r"^[A-Za-z0-9_-]+( [A-Za-z0-9_-]+)*$", examples=["ORTHO_001", "Mr Z"])
     display_name: Optional[str] = Field(None, max_length=40)
     visit_type: VisitType
     referral_category: Referral

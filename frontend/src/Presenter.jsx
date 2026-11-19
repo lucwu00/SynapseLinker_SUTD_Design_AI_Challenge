@@ -204,20 +204,24 @@ function PatientRow({ p, robots, act }) {
 }
 
 function CheckIn({ act }) {
-  const [f, setF] = useState({ patient_id: "", visit_type: "follow_up", referral_category: "Knee/Hip", age: 60,
+  const [f, setF] = useState({ display_name: "", patient_id: "", visit_type: "follow_up", referral_category: "Knee/Hip", age: 60,
     mobility: "independent", clinician_priority: "routine", doctor_id: "DR01", pre_consult_tests: [], robot_id: "" });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === "number" ? Number(e.target.value) : e.target.value });
   const tog = (t) => setF({ ...f, pre_consult_tests: f.pre_consult_tests.includes(t) ? f.pre_consult_tests.filter((x) => x !== t) : [...f.pre_consult_tests, t] });
   const submit = (e) => {
     e.preventDefault();
-    const b = { ...f };
+    const b = { ...f, display_name: f.display_name.trim(), patient_id: f.patient_id.trim().replace(/\s+/g, " ") };
     if (!b.robot_id) delete b.robot_id;
-    act("/patients/check-in", b).then((ok) => ok && setF({ ...f, patient_id: "" }));
+    if (!b.patient_id) delete b.patient_id;            // the system gives the next ORTHO_nnn
+    if (!b.display_name) delete b.display_name;
+    act("/patients/check-in", b).then((ok) => ok && setF({ ...f, display_name: "", patient_id: "" }));
   };
   return (
     <form className="checkin" onSubmit={submit}>
       <h2>Check in a patient</h2>
-      <label>Patient ID<input required pattern="[A-Za-z0-9_-]{1,32}" value={f.patient_id} onChange={set("patient_id")} placeholder="ORTHO_010" /></label>
+      <label>Name<input maxLength={40} value={f.display_name} onChange={set("display_name")} placeholder="Mr Z (fictional)" /></label>
+      <label>Patient ID <span className="muted">(optional)</span><input maxLength={32} pattern="\s*[A-Za-z0-9_\-]+(\s+[A-Za-z0-9_\-]+)*\s*" title="Letters, numbers, spaces, _ or -"
+        value={f.patient_id} onChange={set("patient_id")} placeholder="auto" /></label>
       <label>Visit<select value={f.visit_type} onChange={set("visit_type")}>{Object.entries(VISIT).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
       <label>Referral<select value={f.referral_category} onChange={set("referral_category")}>
         {Object.entries(SUBSPECIALTY).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>

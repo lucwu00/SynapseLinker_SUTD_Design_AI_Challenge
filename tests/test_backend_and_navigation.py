@@ -447,3 +447,21 @@ def test_staff_change_orders(svc):
     with pytest.raises(ServiceError):
         svc.change_orders("N1", remove=[step])
     assert svc._patient("N1")["recommendation"] is not None
+
+
+def test_check_in_with_name_only_gets_an_id(svc):
+    j = svc.check_in(dict(display_name="Mr Z", visit_type="follow_up", referral_category="Knee/Hip", age=60))
+    j2 = svc.check_in(dict(display_name="Mdm Y", visit_type="follow_up", referral_category="Knee/Hip", age=61))
+    assert j["patient"]["patient_id"] == "ORTHO_001" and j2["patient"]["patient_id"] == "ORTHO_002"
+    assert j["patient"]["display_name"] == "Mr Z"
+
+
+def test_patient_id_with_spaces(svc):
+    from backend.schemas import CheckInRequest
+    CheckInRequest(patient_id="Mr Z", visit_type="follow_up", referral_category="Knee/Hip", age=60)
+    for bad in [" Mr Z", "Mr  Z", "Mr@Z"]:
+        with pytest.raises(Exception):
+            CheckInRequest(patient_id=bad, visit_type="follow_up", referral_category="Knee/Hip", age=60)
+    j = svc.check_in(dict(patient_id="Mr Z", visit_type="follow_up", referral_category="Knee/Hip", age=60))
+    assert j["patient"]["patient_id"] == "Mr Z"
+    svc.change_orders("Mr Z", add=["ECG"])

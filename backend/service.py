@@ -407,7 +407,12 @@ class SynapseService:
     # ================================================================== journey operations
     def check_in(self, req: dict) -> dict:
         with self.lock:
-            pid = req["patient_id"]
+            pid = req.get("patient_id")
+            if not pid:                                   # staff typed only a name: give the next free ID
+                n = self.db.one("SELECT COUNT(*) AS n FROM patients")["n"] + 1
+                while self.db.one("SELECT 1 FROM patients WHERE patient_id=?", (f"ORTHO_{n:03d}",)):
+                    n += 1
+                pid = req["patient_id"] = f"ORTHO_{n:03d}"
             if self.db.one("SELECT 1 FROM patients WHERE patient_id=?", (pid,)):
                 raise ServiceError(f"Patient {pid} already checked in", 409)
             steps = ["REGISTRATION"] + list(req.get("pre_consult_tests", [])) + ["CONSULT"] + \

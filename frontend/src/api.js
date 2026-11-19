@@ -12,7 +12,7 @@ export const connectText = (error, localHint) =>
     : `Cannot reach the backend: ${error}.${localHint ? " " + localHint : ""}`;
 
 export async function api(path, method = "GET", body) {
-  const res = await fetch(API_BASE + path, {
+  const res = await fetch(API_BASE + path.replace(/ /g, "%20"), {   // patient IDs may contain spaces
     method,
     headers: body ? { "Content-Type": "application/json" } : {},
     body: body ? JSON.stringify(body) : undefined,

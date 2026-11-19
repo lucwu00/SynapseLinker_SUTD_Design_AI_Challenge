@@ -94,3 +94,58 @@ export const T = {
 };
 
 export const fill = (s, v) => s.replace(/\{(\w+)\}/g, (_, k) => (v[k] ?? ""));
+
+// Voice assistant (robot screen). Drafts: have native speakers check them.
+export const VOICE = {
+  en: {
+    speak: "Ask me", stop: "Stop listening", listening: "Listening… ask your question", transcript: "Conversation",
+    hide: "Hide", type: "Or type your question", send: "Ask", empty: "Ask me where to go next, how long the wait is, or a question about the clinic.",
+    you: "You", me: "EDi", noMic: "Voice is not available in this browser. You can type your question instead.",
+    insecure: "Voice needs a secure (https) page. You can type your question instead.",
+    notHeard: "Sorry, I did not hear that. Please try again.", urgent: "I am calling a staff member now. Please sit down and stay where you are.",
+    calling: "I have asked a staff member to come and help you. Please stay where you are.",
+    noPatientHelp: "Please ask the staff at the nearest counter.",
+    who: "I am EDi, the clinic guide robot. I can tell you your next step and the waiting time, take you there, and answer common questions. For medical questions, please ask a nurse or doctor.",
+    welcome: "You are welcome. Take care.", noPatient: "Please enter your queue number first, or ask the staff at the counter.",
+    okGuide: "Okay. Please follow me.", left: "You have {n} steps left: {list}.", nothingLeft: "You have no more steps after this one.",
+    medical: "I cannot answer medical questions. Please ask your doctor or a nurse. Say \"help\" and I will call a staff member.",
+    notSure: "Sorry, I am not sure about that. Please ask the staff at the counter, or say \"help\" and I will call someone.",
+  },
+  zh: {
+    speak: "问我", stop: "停止聆听", listening: "我在听…请提问", transcript: "对话记录", hide: "隐藏", type: "或输入您的问题", send: "提问",
+    empty: "您可以问我下一步去哪里、要等多久。", you: "您", me: "EDi", noMic: "此浏览器不支持语音。您可以输入问题。",
+    insecure: "语音功能需要安全（https）网页。您可以输入问题。", notHeard: "对不起，我没听清楚。请再说一次。",
+    urgent: "我现在就请工作人员过来。请坐下，留在原地。", calling: "我已请工作人员过来帮助您。请留在原地。",
+    noPatientHelp: "请询问最近柜台的工作人员。", who: "我是诊所导航机器人 EDi。我可以告诉您下一步和等候时间，并带您过去。医疗问题请询问护士或医生。",
+    welcome: "不客气，请保重。", noPatient: "请先输入您的排队号码，或询问柜台的工作人员。", okGuide: "好的，请跟我来。",
+    left: "您还有 {n} 个步骤：{list}。", nothingLeft: "这是您最后一个步骤。",
+    medical: "我不能回答医疗问题。请询问医生或护士。说“帮助”，我会请工作人员过来。",
+    notSure: "对不起，这个问题请询问柜台的工作人员。说“帮助”，我会请人过来。",
+  },
+  ms: {
+    speak: "Tanya saya", stop: "Berhenti mendengar", listening: "Saya sedang mendengar… sila tanya", transcript: "Perbualan", hide: "Sembunyi",
+    type: "Atau taip soalan anda", send: "Tanya", empty: "Tanya saya ke mana seterusnya atau berapa lama perlu menunggu.",
+    you: "Anda", me: "EDi", noMic: "Suara tidak disokong dalam pelayar ini. Anda boleh menaip soalan.",
+    insecure: "Suara memerlukan halaman selamat (https). Anda boleh menaip soalan.", notHeard: "Maaf, saya tidak dengar. Sila cuba lagi.",
+    urgent: "Saya sedang memanggil kakitangan sekarang. Sila duduk dan tunggu di situ.", calling: "Saya telah meminta kakitangan datang membantu. Sila tunggu di situ.",
+    noPatientHelp: "Sila tanya kakitangan di kaunter berdekatan.",
+    who: "Saya EDi, robot pemandu klinik. Saya boleh beritahu langkah seterusnya dan masa menunggu, dan membawa anda ke sana. Untuk soalan perubatan, sila tanya jururawat atau doktor.",
+    welcome: "Sama-sama. Jaga diri.", noPatient: "Sila masukkan nombor giliran anda dahulu, atau tanya kakitangan di kaunter.", okGuide: "Baik. Sila ikut saya.",
+    left: "Anda ada {n} langkah lagi: {list}.", nothingLeft: "Ini langkah terakhir anda.",
+    medical: "Saya tidak boleh menjawab soalan perubatan. Sila tanya doktor atau jururawat. Sebut \"tolong\" dan saya akan panggil kakitangan.",
+    notSure: "Maaf, sila tanya kakitangan di kaunter. Sebut \"tolong\" dan saya akan panggil seseorang.",
+  },
+  ta: {
+    speak: "என்னிடம் கேளுங்கள்", stop: "கேட்பதை நிறுத்து", listening: "கேட்கிறேன்… உங்கள் கேள்வியைக் கேளுங்கள்", transcript: "உரையாடல்", hide: "மறை",
+    type: "அல்லது உங்கள் கேள்வியைத் தட்டச்சு செய்யவும்", send: "கேள்", empty: "அடுத்து எங்கே போக வேண்டும், எவ்வளவு நேரம் காத்திருக்க வேண்டும் என்று கேளுங்கள்.",
+    you: "நீங்கள்", me: "EDi", noMic: "இந்த உலாவியில் குரல் வசதி இல்லை. கேள்வியைத் தட்டச்சு செய்யலாம்.",
+    insecure: "குரல் வசதிக்குப் பாதுகாப்பான (https) பக்கம் தேவை. கேள்வியைத் தட்டச்சு செய்யலாம்.", notHeard: "மன்னிக்கவும், கேட்கவில்லை. மீண்டும் முயலவும்.",
+    urgent: "இப்போதே ஊழியரை அழைக்கிறேன். உட்கார்ந்து இங்கேயே இருங்கள்.", calling: "உதவ ஊழியர் ஒருவரை அழைத்துள்ளேன். இங்கேயே இருங்கள்.",
+    noPatientHelp: "அருகிலுள்ள கவுண்டரில் உள்ள ஊழியரிடம் கேளுங்கள்.",
+    who: "நான் EDi, மருத்துவமனை வழிகாட்டி ரோபோ. அடுத்த படியையும் காத்திருப்பு நேரத்தையும் சொல்லி, அங்கே அழைத்துச் செல்வேன். மருத்துவக் கேள்விகளுக்குச் செவிலியர் அல்லது மருத்துவரிடம் கேளுங்கள்.",
+    welcome: "நன்றி. உடல்நலத்தைப் பார்த்துக்கொள்ளுங்கள்.", noPatient: "முதலில் உங்கள் வரிசை எண்ணை உள்ளிடவும், அல்லது கவுண்டரில் கேளுங்கள்.", okGuide: "சரி. என்னைப் பின்தொடருங்கள்.",
+    left: "இன்னும் {n} படிகள் உள்ளன: {list}.", nothingLeft: "இதுவே உங்கள் கடைசி படி.",
+    medical: "மருத்துவக் கேள்விகளுக்கு என்னால் பதில் சொல்ல முடியாது. மருத்துவர் அல்லது செவிலியரிடம் கேளுங்கள். \"உதவி\" என்று சொன்னால் ஊழியரை அழைப்பேன்.",
+    notSure: "மன்னிக்கவும், கவுண்டரில் உள்ள ஊழியரிடம் கேளுங்கள். \"உதவி\" என்று சொன்னால் ஒருவரை அழைப்பேன்.",
+  },
+};

@@ -157,21 +157,23 @@ def d3(svc):
             req.remove("XRAY")
             svc.db.update("patients", "patient_id", A, required_steps=req)
         add = [x for x in ("XRAY", "REVIEW") if not _pending(svc, A, x)]   # Add X-ray may have been pressed already
-        svc.route_check["EDi-01"] = _xray_room_1(svc)       # it looks into the nearest X-ray room on its way
+        r1 = svc.planner.map["rooms"][_xray_room_1(svc)]["node"]
+        svc.route_via["EDi-01"] = r1                        # on its way it passes X-ray Room 1...
+        svc.route_pause["EDi-01"] = {r1: 2.0}               # ...stops there 2 s to look in: occupied, carries on
         svc.complete_service(A, "CONSULT", added_steps=add or None, recorded_by="Doctor")
     elif not _pending(svc, A, "XRAY") and not _done(svc, A, "XRAY"):
         svc.change_orders(A, add=["XRAY"], recorded_by="Doctor")
     if _status(svc, A) == "AWAITING_GUIDANCE":             # auto-dispatch did not run (e.g. robot not ready)
         svc.confirm_destination(A, "XRAY", robot_id="EDi-01", source="staff")
-    svc.route_check.pop("EDi-01", None)
+    svc.route_via.pop("EDi-01", None); svc.route_pause.pop("EDi-01", None)
     p = svc._patient(A)
     first = _room_label(svc, p.get("assigned_room"))
     return dict(title="A to X-ray: room occupied, re-guide",
                 narration=["Mdm Lee's X-ray starts in X-ray Room 1 (red). The doctor finishes Mr Tan's consultation and "
                            "orders an X-ray, then a doctor review (clinician order). Consultation Room 1 is free again.",
-                           f"RULES + ML: next service X-ray. EDi-01 leads him to the nearest X-ray room, {first}.",
-                           "WATCH: EDi-01 stops at X-ray Room 1 and turns to look in: Mdm Lee is there (OCCUPIED), so it "
-                           "re-guides Mr Tan round the top-right corner to X-ray Room 2.",
+                           f"RULES + ML: next service X-ray. X-ray Room 1 is occupied, so EDi-01 leads him to {first}.",
+                           "WATCH: on its way EDi-01 stops for 2 seconds at X-ray Room 1, looks in (Mdm Lee is there, "
+                           "occupied), then carries on round the top-right corner to X-ray Room 2.",
                            "When EDi-01 shows ARRIVED at X-ray Room 2, go to scene 4."])
 
 

@@ -161,7 +161,8 @@ class SynapseService:
             self.robot_notes = {}
             self.pickups = {}
             self.route_via = {}
-            self.route_check = {}        # robot -> room it must look into first, even if listed as occupied
+            self.route_check = {}
+            self.route_pause = {}        # robot -> {node: seconds} stops on its next route        # robot -> room it must look into first, even if listed as occupied
             self.last_room = {}          # patient -> room they were last in (to keep showing them on the map)          # robot -> node its next route must pass (e.g. collect a patient on the way)
             self.order_locked = set()    # patients whose step order staff set by hand (the router follows it)
             self.queue_override = {}     # station -> patient ids in the order staff chose            # task id -> patient: the robot is driving to collect them (no guiding yet)        # robot -> (patient, note shown on its screen), e.g. a takeover      # virtual robot -> the walk it is showing a patient on the floor map
@@ -986,6 +987,7 @@ class SynapseService:
             except MapError as e:
                 raise ServiceError(f"Cannot plan route: {e}", 422)
             route.room_id = room
+            route.pauses = {n: sec for n, sec in self.route_pause.pop(rid, {}).items() if n in route.nodes[1:-1]}
             self.task_seq += 1
             tid = f"TASK_{self.run_tag}{self.task_seq:03d}"
             try:

@@ -154,7 +154,12 @@ class ESP32Adapter(NavigationAdapter):
         if not all(pts) or len(pts) < 2:
             return None
         segs = [math.dist((a["x"], a["y"]), (b["x"], b["y"])) for a, b in zip(pts, pts[1:])]
-        d = min((time.time() - self.drive_t0[t.task_id]) * self.est_speed_m_s, 0.92 * sum(segs))
+        el, run = time.time() - self.drive_t0[t.task_id], 0.0
+        for n, L in zip(t.route.nodes[1:-1], segs):                 # stops on the way (a look into a room)
+            run += L
+            if n in (t.route.pauses or {}) and el * self.est_speed_m_s > run:
+                el = max(run / self.est_speed_m_s, el - float(t.route.pauses[n]))
+        d = min(el * self.est_speed_m_s, 0.92 * sum(segs))
         for a, b, L in zip(pts, pts[1:], segs):
             if d <= L:
                 k = d / (L or 1)

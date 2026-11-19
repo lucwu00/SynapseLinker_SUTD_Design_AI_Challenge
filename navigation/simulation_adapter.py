@@ -37,6 +37,7 @@ class SimulationAdapter(NavigationAdapter):
                  scan_s: float = 0.0):
         super().__init__(robot_id, on_event)
         self.scan_s, self.scan_left = scan_s, None          # pause on a room's bar while it looks into the room
+        self.pause_left, self.paused = 0.0, set()
         self.speed, self.wait_s, self.nodes, self.detect_m = speed_m_s, obstacle_wait_s, nodes or {}, detect_m
         self.obstacle_on = obstacle_on or (lambda a, b: False)
         self.room_occupied = room_occupied or (lambda room: False)
@@ -109,6 +110,7 @@ class SimulationAdapter(NavigationAdapter):
     def _start(self, route: Route):
         self.travelled, self.blocked_edge, self.blocked_for, self.reported, self.manual_obstacle = 0.0, None, 0.0, False, False
         self.scan_left = None
+        self.pause_left, self.paused = 0.0, set()
         self.current.state = self.status.state = NavState.NAVIGATING
         self.status.task_id, self.status.message = self.current.task_id, None
 
@@ -132,7 +134,19 @@ class SimulationAdapter(NavigationAdapter):
         st = self.status.state
         if st == NavState.NAVIGATING:
             cum = self._cum(t.route)
+            if self.pause_left > 0:                                  # stopped on the way to look into a room
+                self.pause_left -= dt_s
+                if self.pause_left <= 0:
+                    self.status.message = None
+                return
             nxt = self.travelled + dt_s * self.speed
+            for i, n in enumerate(t.route.nodes[1:-1], start=1):
+                if n in (t.route.pauses or {}) and n not in self.paused and self.travelled < cum[i] <= nxt + 1e-9:
+                    self.travelled, self.pause_left = cum[i], float(t.route.pauses[n])
+                    self.paused.add(n)
+                    self.status.message = "Looking into the room on the way"
+                    t.progress = self.travelled / max(cum[-1], 1e-9)
+                    return
             for i, (a, b) in enumerate(zip(t.route.nodes, t.route.nodes[1:])):
                 stop_at = cum[i] + max((cum[i + 1] - cum[i]) / 2 - self.detect_m, min(0.05, (cum[i + 1] - cum[i]) / 3))   # obstacle mid-segment
                 if self.obstacle_on(a, b) and self.travelled <= stop_at < nxt + 1e-9:

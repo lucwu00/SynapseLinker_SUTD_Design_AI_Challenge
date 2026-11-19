@@ -35,6 +35,7 @@ class Route:
     marks: list[dict] = field(default_factory=list)           # tape features in crossing order (see route_planner)
     scan_side: str = "LEFT"                                   # side of the track the destination room is on
     shapes: list = field(default_factory=list)                # per edge: tape polyline [(x, y), ...] in travel order
+    pauses: dict = field(default_factory=dict)                # node -> seconds the robot stops there on its way (a look)
 
     @property
     def mark_nodes(self) -> list[str]:

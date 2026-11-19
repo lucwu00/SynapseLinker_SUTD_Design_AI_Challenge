@@ -46,7 +46,10 @@
 #endif
 
 // ---------------------------------------------------------------- shared types
+// (declared before any function: the Arduino IDE puts its generated function prototypes up here)
 enum Act : uint8_t { A_PASS, A_STOP, A_LEFT, A_RIGHT, A_UTURN, A_GO };
+enum State : uint8_t { IDLE, START_ACT, START_CHECK, FOLLOW, CENTER, TURN_AT_NODE, BLOCKED, TURN_AROUND,
+                       WAIT_REROUTE, SCAN_OUT, SCAN_MEASURE, SCAN_BACK, ARRIVED, ESTOP, FAULT };
 static const uint8_t MAX_MARKS = 24;
 
 struct Feature {
@@ -324,8 +327,6 @@ static float distanceCm() {                  // <0 = no echo / out of range
 // ============================================================================
 //  CONTROL (core 1): state machine
 // ============================================================================
-enum State : uint8_t { IDLE, START_ACT, START_CHECK, FOLLOW, CENTER, TURN_AT_NODE, BLOCKED, TURN_AROUND,
-                       WAIT_REROUTE, SCAN_OUT, SCAN_MEASURE, SCAN_BACK, ARRIVED, ESTOP, FAULT };
 static const char* STATE_NAME[] = {"IDLE", "START_ACT", "START_CHECK", "FOLLOW", "CENTER", "TURN_AT_NODE",
                                    "BLOCKED", "TURN_AROUND", "WAIT_REROUTE", "SCAN_OUT", "SCAN_MEASURE",
                                    "SCAN_BACK", "ARRIVED", "ESTOP", "FAULT"};

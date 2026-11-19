@@ -220,16 +220,44 @@ static void wiringCheck() {
 }
 
 // The real firmware turns Wi-Fi off while driving when the AN wire is on an ADC2 pin. Check the pin
-// still reads the line after the radio has been on and off again.
+// reads the tape BEFORE Wi-Fi, AFTER Wi-Fi has been on and off, and (if that fails) with the known
+// ESP32 register fix applied.
+#if __has_include("soc/sens_reg.h")
+#include "soc/sens_reg.h"
+#ifdef SENS_SAR_READ_CTRL2_REG
+#define HAVE_SENS_REG 1
+static uint32_t sarCtrl2AtBoot = 0;
+#endif
+#endif
+static bool slideRead(const char* label, float& vmin, float& vmax) {
+  Serial.printf("%s: slide the robot across the tape now (5 s)...\n", label);
+  vmin = 9; vmax = 0; uint32_t t0 = millis();
+  while (millis() - t0 < 5000) { float v = anVolts(); vmin = min(vmin, v); vmax = max(vmax, v); delay(5); }
+  bool ok = vmax - vmin > 0.8;
+  Serial.printf("  AN %.2f V .. %.2f V  %s\n", vmin, vmax, ok ? "OK" : "NOT CHANGING");
+  return ok;
+}
 static void radioOffCheck() {
+  float a, b;
+  Serial.println("Hold the robot so the sensor bar is just above the table, and slide it over the black tape and back.");
+  bool before = slideRead("1/3 before Wi-Fi", a, b);
   Serial.println("Wi-Fi on for 3 s...");
   WiFi.mode(WIFI_STA); WiFi.begin(WIFI_SSID, WIFI_PASSWORD); delay(3000);
-  WiFi.disconnect(true); WiFi.mode(WIFI_OFF); delay(100);
-  Serial.printf("Wi-Fi off. Slide across the tape for 6 s (AN on GPIO %d)...\n", PIN_LINE_AN);
-  float vmin = 9, vmax = 0; uint32_t t0 = millis();
-  while (millis() - t0 < 6000) { float v = anVolts(); vmin = min(vmin, v); vmax = max(vmax, v); delay(5); }
-  Serial.printf("  AN went from %.2f V to %.2f V%s\n", vmin, vmax, vmax - vmin > 0.8
-                ? " - OK: the robot can drive with this pin" : " - NOT CHANGING: tell Claude (move the wire to 32-39 instead)");
+  WiFi.disconnect(true); WiFi.mode(WIFI_OFF); delay(200);
+  bool after = slideRead("2/3 after Wi-Fi off", a, b);
+  bool fixed = false;
+#ifdef HAVE_SENS_REG
+  if (!after) {
+    WRITE_PERI_REG(SENS_SAR_READ_CTRL2_REG, sarCtrl2AtBoot);
+    fixed = slideRead("3/3 after Wi-Fi off, with register fix", a, b);
+  }
+#endif
+  Serial.println("RESULT (copy this to Claude):");
+  if (!before) Serial.printf("  The sensor did not change even BEFORE Wi-Fi: it never crossed the tape, or the AN wire is not on "
+                             "GPIO %d (run 'a'). Try again, sliding over the tape.\n", PIN_LINE_AN);
+  else if (after) Serial.printf("  OK: GPIO %d works after Wi-Fi off. The robot can drive with this wire.\n", PIN_LINE_AN);
+  else if (fixed) Serial.println("  OK WITH FIX: the register fix makes it work. Tell Claude 'o needs the fix'.");
+  else Serial.println("  FAILS after Wi-Fi: move the AN wire to GPIO 32-39 (e.g. D32) and set PIN_LINE_AN to that pin.");
 }
 
 static void wifiCheck() {
@@ -273,6 +301,9 @@ void setup() {
 #endif
   pinMode(PIN_US_TRIG, OUTPUT); pinMode(PIN_US_ECHO, INPUT);
   pinMode(PIN_ESTOP, INPUT_PULLUP);
+#ifdef HAVE_SENS_REG
+  sarCtrl2AtBoot = READ_PERI_REG(SENS_SAR_READ_CTRL2_REG);   // before Wi-Fi ever starts
+#endif
   Serial.println("\nOjanBot hardware test. Commands: a o k l u w f b L R p P m v x");
 }
 

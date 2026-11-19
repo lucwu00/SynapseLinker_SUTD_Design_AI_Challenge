@@ -583,6 +583,6 @@ def test_table_demo_story_with_manual_buttons(table_svc):
     svc.complete_service(B, "XRAY")
     demo.scene(svc, 4); _drive(svc)
     assert svc._patient(B)["status"] == "QUEUED" and svc._patient(B)["assigned_room"] == "ROOM_A"
-    svc.start_service(A); svc.complete_service(A, "XRAY")
+    svc.complete_service(A, "XRAY")                                      # scene 4 already started his X-ray
     demo.scene(svc, 5)
     assert svc.eligible(svc._patient(A)) == ["REVIEW"]

@@ -1,7 +1,7 @@
 @echo off
 REM Synapse Linker - DEMO DAY with the real EDi-01 (OjanBot ESP32) on the 60 x 60 cm table.
 REM 1. Turn on Windows Mobile Hotspot first (Settings > Network > Mobile hotspot), 2.4 GHz band.
-REM 2. Put EDi-01 on the START mark facing right (counter-clockwise), then run this file.
+REM 2. Put EDi-01 on the START mark (middle of the bottom line) facing LEFT, towards Consult Room 1, then run this file.
 REM 3. Phone on the robot:  http://192.168.137.1:8000/#/robot/EDi-01
 REM    Virtual robot laptop: http://192.168.137.1:8000/#/robot/EDi-02
 REM    Wall display: http://localhost:8000/#/      Presenter: http://localhost:8000/#/presenter

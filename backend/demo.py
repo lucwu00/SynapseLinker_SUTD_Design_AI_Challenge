@@ -219,18 +219,35 @@ def _label(svc, room):
 
 
 def s8(svc):
-    """Starts from a clean clinic. Runs live: watch the floor map."""
-    svc.reset()
+    """Room occupied, re-guide. Run right after scene 1 (EDi-01 has delivered Mr T to the consult room) and it
+    continues from there: Mr T is now being seen, a second patient needs an X-ray first. Run on its own and it
+    starts from a clean clinic with EDi-01 on START."""
+    a = svc.adapters.get("EDi-01")
+    here = svc.planner.node_of(a.get_robot_status().position) if a else None
+    cont = (_exists(svc, "ORTHO_001") and a is not None and here not in (None, svc.planner.map.get("start_node"))
+            and a.get_robot_status().state.value in ("ARRIVED", "IDLE"))
+    if not cont:
+        svc.reset()
     rooms = _xray_rooms_by_distance(svc)
     first, other = rooms[0], (rooms[1] if len(rooms) > 1 else None)
     svc.update_room(first, person_present=True)             # someone walked in; nobody updated the system
-    svc.check_in({**XRAY_PATIENT, "appointment_time": svc.clock.to_dict()["clinic_time"], "robot_id": "EDi-01"})
+    first_line = ""
+    if cont:
+        p1 = svc._patient("ORTHO_001")
+        if p1["status"] == "QUEUED":
+            svc.start_service("ORTHO_001")                   # Mr T goes in: the consult room is now occupied
+        svc.check_in({**XRAY_PATIENT, "appointment_time": svc.clock.to_dict()["clinic_time"]})
+        svc.assign_robot("EDi-01", "ORTHO_201", force=True)
+        first_line = "Mr T is now with the doctor, so the consult room is occupied. "
+    else:
+        svc.check_in({**XRAY_PATIENT, "appointment_time": svc.clock.to_dict()["clinic_time"], "robot_id": "EDi-01"})
     p = svc._patient("ORTHO_201")
     zone = svc.planner.map["rooms"][first].get("zone")
-    setup = (f"ON THE TABLE: put the robot on START facing right, and a person block at {_cm(zone)}. "
-             if _physical(svc) and zone else "")
+    where = "leave EDi-01 where it stopped" if cont else "put EDi-01 on START facing left (towards Consult Room 1)"
+    setup = f"ON THE TABLE: {where}, and put a person block in {_label(svc, first)} at {_cm(zone)}. " \
+        if _physical(svc) and zone else ""
     return dict(scene=8, title="Room occupied, re-guide",
-                narration=[setup + f"Clean start. A person is sitting in {_label(svc, first)}, but the system still thinks it is free.",
+                narration=[setup + first_line + f"A person is sitting in {_label(svc, first)}, but the system still thinks it is free.",
                            f"Queue no. {p['queue_no']} (follow-up fracture, walking aid) needs an X-ray before seeing the doctor.",
                            f"EDi-01 guides the patient to the nearest free X-ray room: {_label(svc, p['assigned_room'])}.",
                            "WATCH THE FLOOR MAP: on arrival EDi-01 turns to scan the room, finds it occupied, checks room "
@@ -264,7 +281,7 @@ def s9(svc):
     wait = svc.planner.map.get("obstacle_wait_s", 5)
     closed = ", ".join(_label(svc, r) for r in closed_rooms) or "none"
     box = (cfg or {}).get("box")
-    where = (f"ON THE TABLE: robot on START facing right, trolley box at {_cm(box)}. " if _physical(svc) and box else
+    where = (f"ON THE TABLE: robot on START facing left, trolley box at {_cm(box)}. " if _physical(svc) and box else
              f"A trolley (simulated) is blocking the corridor {edge[0]}-{edge[1]}. ")
     return dict(scene=9, title="Corridor blocked, reroute",
                 narration=[f"Clean start. Closed rooms: {closed}. " + where + "The system does not know yet.",

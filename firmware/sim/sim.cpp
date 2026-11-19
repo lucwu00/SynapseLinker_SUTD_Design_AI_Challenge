@@ -22,24 +22,21 @@ BaseType_t xQueueReceive(QueueHandle_t q,void*p,uint32_t){ Q*Qq=(Q*)q; if(Qq->d.
 BaseType_t xQueuePeek(QueueHandle_t q,void*p,uint32_t){ Q*Qq=(Q*)q; if(Qq->d.empty())return 0; memcpy(p,Qq->d.front().data(),Qq->sz); return 1;}
 void vTaskDelay(uint32_t){} void xTaskCreatePinnedToCore(void(*)(void*),const char*,int,void*,int,void*,int){}
 
-// ---- world: 60 x 60 cm double loop
-const double LO=0.10, HI=0.50, MID=0.30, R=0.08, TW=0.019, MARKL=0.08, DS=0.045, PITCH=0.013, B=0.074, VMAX=0.30;
+// ---- world: the table AS BUILT - 50 x 50 cm square of tape 5 cm in from the edges, SQUARE corners,
+//      middle corridor at y = 30 cm, station bars S1 (right rail), S2 (top), S3 (left rail), no bar at START.
+const double LO=0.05, HI=0.55, MID=0.30, TW=0.025, MARKL=0.08, DS=0.045, PITCH=0.013, B=0.074, VMAX=0.30;
 struct P{double x,y;};
-static double rx=0.30, ry=0.10, th=0; // START facing +x
+static double rx=0.30, ry=0.05, th=M_PI; // START facing left
 static std::vector<P> obst;
 static bool bootButton=false;
 static std::vector<P> people;
-double distToRect(double x,double y){
-  double cx=std::max(LO+R,std::min(HI-R,x)), cy=std::max(LO+R,std::min(HI-R,y));
-  double dx=x-cx, dy=y-cy; double d=std::sqrt(dx*dx+dy*dy);
-  if (d<1e-9) return std::min(std::min(x-LO,HI-x),std::min(y-LO,HI-y));
-  return std::fabs(d-R);
-}
-struct Bar{P c; bool alongY;};   // station bars across the line
-Bar bars[4]={{{0.30,LO},true},{{HI,0.38},false},{{0.30,HI},true},{{LO,0.22},false}};
+static bool onSeg(double x,double y,double x0,double y0,double x1,double y1){   // axis-aligned tape strip
+  double h=TW/2; return x>=std::min(x0,x1)-h && x<=std::max(x0,x1)+h && y>=std::min(y0,y1)-h && y<=std::max(y0,y1)+h; }
+struct Bar{P c; bool alongY;};   // station bars across the line (alongY: the bar runs along y)
+Bar bars[3]={{{HI,0.42},false},{{0.21,HI},true},{{LO,0.19},false}};
 bool black(double x,double y){
-  if (distToRect(x,y) < TW/2) return true;
-  if (std::fabs(y-MID)<TW/2 && x>LO && x<HI) return true;              // middle corridor
+  if (onSeg(x,y,LO,LO,HI,LO)||onSeg(x,y,LO,HI,HI,HI)||onSeg(x,y,LO,LO,LO,HI)||onSeg(x,y,HI,LO,HI,HI)) return true;
+  if (onSeg(x,y,LO,MID,HI,MID)) return true;                                   // middle corridor
   for (auto&b:bars){ double along=b.alongY? std::fabs(x-b.c.x):std::fabs(y-b.c.y), across=b.alongY? std::fabs(y-b.c.y):std::fabs(x-b.c.x);
     if (along<TW/2 && across<MARKL/2) return true; }
   return false;
@@ -59,14 +56,17 @@ int digitalRead(int p){
 }
 static int calls=0; unsigned long pulseIn(int,int,unsigned long){ calls++; if(getenv("DBG2") && calls%5==0) printf("pulse at (%.3f,%.3f) th=%.0f obst=%zu\n",rx,ry,fmod(th*57.3+720,360),obst.size());
   double sx=rx+0.05*cos(th), sy=ry+0.05*sin(th), best=1e9;
-  auto chk=[&](P o,double half){ double dx=o.x-sx, dy=o.y-sy, d=sqrt(dx*dx+dy*dy); double a=atan2(dy,dx)-th; a=atan2(sin(a),cos(a));
-     if (fabs(a)<0.26) best=std::min(best,d-half); };
+  auto chk=[&](P o,double half){ double dx=o.x-sx, dy=o.y-sy;            // box of half-width `half`, 15 deg beam
+     double along=dx*cos(th)+dy*sin(th), lat=-dx*sin(th)+dy*cos(th);
+     if (along>0 && fabs(lat) < half + along*tan(0.26)) best=std::min(best,along-half); };
   for(auto o:obst) chk(o,0.02); for(auto o:people) chk(o,0.02);
   if (getenv("DBG") && best<0.2) printf("us %.3f at (%.3f,%.3f) th=%.0f\n",best,rx,ry,th*57.3); if (best>0.6) return 0; if (best<0.005) best=0.005; return (unsigned long)(best*100*58);
 }
 void physics(double dt){
   static double VS=getenv("VSCALE")?atof(getenv("VSCALE")):1.0; double l=(pwmL1-pwmL2)/255.0*VMAX*VS, r=(pwmR1-pwmR2)/255.0*VMAX*VS;
-  double v=(l+r)/2, w=(r-l)/B; th+=w*dt; rx+=v*cos(th)*dt; ry+=v*sin(th)*dt;
+  // VSCALE: forward speed error (CM_PER_S not calibrated); PSCALE: turn-rate error (PIVOT_90_MS not calibrated)
+  static double PS=getenv("PSCALE")?atof(getenv("PSCALE")):1.0;
+  double v=(l+r)/2, w=(r-l)/B/VS*PS; th+=w*dt; rx+=v*cos(th)*dt; ry+=v*sin(th)*dt;
 }
 // feed one command
 struct F{char t,p; const char*a; float d,m;};
@@ -88,42 +88,28 @@ void runUntil(const char* stateName,int maxMs){
 }
 int main(){
   setup();
-  puts("== Scene 8: START -> Station 1 (X-ray 2): pass right T-junction, STOP, scan LEFT; person there");
-  people.push_back({0.39,0.38});
-  cmd("NAVIGATE","T1","GO",{{'J','L',"PASS",36.6,44.6},{'S','C',"STOP",8,16}},true,true); runUntil("ARRIVED",20000);
-  puts("== re-guide to Station 2 (X-ray 1)");
+  puts("== Scene 1: START (facing left) -> Consult Room 1: corner RIGHT at 25 cm, Station 3 bar, scan RIGHT (free)");
+  cmd("NAVIGATE","T1","GO",{{'K','R',"RIGHT",25,33},{'S','C',"STOP",14,22}},true,false); runUntil("ARRIVED",20000);
+  puts("== Scene 8: Station 3 -> X-ray Room 1: pass left T, corner RIGHT, Station 2, scan RIGHT; block in the room");
+  people.push_back({0.21,0.45});
+  cmd("NAVIGATE","T2","GO",{{'J','R',"PASS",11,19},{'K','R',"RIGHT",25,33},{'S','C',"STOP",16,24}},true,false); runUntil("ARRIVED",25000);
+  puts("== re-guide to X-ray Room 2: corner RIGHT at 34 cm, Station 1, scan RIGHT (free)");
   people.clear();
-  cmd("REROUTE","T1","GO",{{'S','C',"STOP",28.6,36.6}},true,true); runUntil("ARRIVED",20000);
-  puts("== reset to START facing right; Scene 9: box at (40,10)");
-  rx=0.30; ry=0.10; th=0; obst.push_back({0.40,0.10});
-  cmd("NAVIGATE","T2","GO",{{'J','L',"PASS",36.6,44.6},{'S','C',"STOP",8,16}},true,true); runUntil("WAIT_REROUTE",15000);
-  puts("== REROUTE via Station 3, left T (RIGHT), middle corridor, right T (LEFT), Station 1");
-  cmd("REROUTE","T2","GO",{{'S','C',"PASS",28.6,36.6},{'J','R',"RIGHT",8,16},{'J','C',"LEFT",40,48},{'S','C',"STOP",8,16}},true,true);
-  runUntil("ARRIVED",40000);
-  puts("== Mid-corridor obstacle: from Station 3 (facing up) to Station 1; box on the middle corridor");
-  obst.clear(); rx=0.10; ry=0.22; th=M_PI/2; obst.push_back({0.38,0.30});
-  cmd("NAVIGATE","T3","GO",{{'J','R',"RIGHT",8,16},{'J','C',"LEFT",40,48},{'S','C',"STOP",8,16}},true,true);
-  runUntil("WAIT_REROUTE",30000);
-  puts("== REROUTE back to the left T (top of T: RIGHT), over the top past Station 2, STOP Station 1 scan RIGHT");
-  cmd("REROUTE","T3","GO",{{'J','C',"RIGHT",0,48},{'S','C',"PASS",36.6,44.6},{'S','C',"STOP",28.6,36.6}},true,false);
-  runUntil("ARRIVED",40000);
-  puts("== E-STOP checks: BOOT button during centring on a station, dashboard STOP during the room scan turn");
-  rx=0.30; ry=0.10; th=0; obst.clear(); people.clear();
-  cmd("NAVIGATE","T5","GO",{{'J','L',"PASS",36.6,44.6},{'S','C',"STOP",8,16}},true,true);
-  runUntil("CENTER",20000);
+  cmd("REROUTE","T2","GO",{{'K','R',"RIGHT",34,42},{'S','C',"STOP",13,21}},true,false); runUntil("ARRIVED",25000);
+  puts("== Scene 9: START facing left -> X-ray Room 2: U-turn, corner LEFT, pass right T; box at (45,5)");
+  rx=0.30; ry=0.05; th=M_PI; obst.push_back({0.45,0.05});
+  cmd("NAVIGATE","T3","U_TURN",{{'K','L',"LEFT",25,33},{'J','L',"PASS",25,33},{'S','C',"STOP",12,20}},true,true); runUntil("WAIT_REROUTE",20000);
+  puts("== REROUTE the other way round (first mark = corner 25 cm beyond START + however far it got)");
+  cmd("REROUTE","T3","GO",{{'K','R',"RIGHT",-25,33+33},{'S','C',"PASS",14,22},{'J','R',"RIGHT",11,19},{'J','C',"LEFT",50,58},{'S','C',"STOP",12,20}},true,true);
+  runUntil("ARRIVED",50000);
+  puts("== E-STOP: BOOT button while driving, then RESUME");
+  rx=0.30; ry=0.05; th=M_PI; obst.clear(); people.clear();
+  cmd("NAVIGATE","T5","GO",{{'K','R',"RIGHT",25,33},{'S','C',"STOP",14,22}},true,false);
+  runUntil("FOLLOW",3000);
+  for(int i=0;i<600;i++){NOW++; lastCommOkMs=NOW; simRadio(); loop(); physics(0.001);}
   bootButton=true; for(int i=0;i<60;i++){NOW++; lastCommOkMs=NOW; simRadio(); loop(); physics(0.001);} bootButton=false;
   { double x0=rx,y0=ry; for(int i=0;i<3000;i++){NOW++; lastCommOkMs=NOW; simRadio(); loop(); physics(0.001);}
-    printf("   during e-stop: state=%s wheels L=%d R=%d moved %.4f m in 3 s\n",STATE_NAME[state],pwmL1-pwmL2,pwmR1-pwmR2,hypot(rx-x0,ry-y0)); }
-  cmd("RESUME","","GO",{}); runUntil("SCAN_OUT",3000);
-  for(int i=0;i<150;i++){NOW++; lastCommOkMs=NOW; simRadio(); loop(); physics(0.001);}
-  cmd("STOP","","GO",{});
-  { double t0=th; for(int i=0;i<3000;i++){NOW++; lastCommOkMs=NOW; simRadio(); loop(); physics(0.001);}
-    printf("   e-stop mid-scan: state=%s turned %.2f rad in 3 s\n",STATE_NAME[state],fabs(th-t0)); }
-  cmd("RESUME","","GO",{}); runUntil("ARRIVED",8000);
-  puts("== Ultrasonic unplugged (no echo ever): robot still drives, scan reports FREE with nearest -1");
-  puts("== Wrong map: tell it a junction comes first when it is a station -> must stop safely");
-  rx=0.30; ry=0.10; th=M_PI; obst.clear();   // at START facing left: next is Station 3 bar
-  cmd("NAVIGATE","T4","GO",{{'J','R',"RIGHT",28.6,36.6},{'S','C',"STOP",8,16}},false);
-  runUntil("FAULT",20000);
+    printf("   during e-stop: state=%s moved %.4f m in 3 s\n",STATE_NAME[state],hypot(rx-x0,ry-y0)); }
+  cmd("RESUME","","GO",{}); runUntil("ARRIVED",20000);
   return 0;
 }

@@ -82,7 +82,7 @@ Then open:
 
 ### Demo script (presenter console buttons 1-9)
 
-Scenes 8 and 9 start from a clean clinic and run in real time. Watch the "Demo table track" panel. With the real robot, put it back on START facing right before each of them.
+Scene 8 continues from scene 1 (EDi-01 at the consult room) or, run alone, starts from a clean clinic; scene 9 always starts clean. Watch the "Demo table track" panel. With the real robot, put it back on START facing left (towards Consult Room 1) before a clean start.
 
 | Scene | What happens | What is ML vs rules vs simulated |
 |---|---|---|

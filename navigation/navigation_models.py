@@ -72,7 +72,7 @@ class NavTask:
                 "mark_actions": [m["action"] for m in self.route.marks] if self.route else [],
                 # per feature: t = S(tation)/J(unction), p = expected pattern C/L/R, a = action,
                 # d = taped cm from the previous feature (0 = unknown), m = give up after this many cm
-                "features": [{"t": m["kind"][0], "p": m["pattern"], "a": m["action"], "d": m["dist_cm"],
+                "features": [{"t": "K" if m["kind"] == "CORNER" else m["kind"][0], "p": m["pattern"], "a": m["action"], "d": m["dist_cm"],
                               "m": m["max_cm"]} for m in self.route.marks] if self.route else [],
                 "scan_side": self.route.scan_side if self.route else "LEFT"}
 

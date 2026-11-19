@@ -53,7 +53,7 @@ enum State : uint8_t { IDLE, START_ACT, START_CHECK, FOLLOW, CENTER, TURN_AT_NOD
 static const uint8_t MAX_MARKS = 24;
 
 struct Feature {
-  char kind;              // 'S' station, 'J' junction
+  char kind;              // 'S' station, 'J' junction, 'K' square corner (the tape ends and turns)
   char pattern;           // 'C' both sides, 'L' / 'R' one side
   uint8_t act;
   float distCm;           // taped distance from the previous feature (0 = unknown)
@@ -421,7 +421,9 @@ static void startRoute(const Command& c) {
   passed = 0; startAct = c.startAct; scanReq = c.scan; scanLeft = c.scanLeft; lastErr = prevErr = 0;
   travelled = 0;
   // After turning round mid-corridor the backend cannot know how far back the node is; the robot does.
-  if (nFeats && feats[0].distCm <= 0 && blockedAtCm > 0) feats[0].distCm = blockedAtCm;
+  if (nFeats && feats[0].distCm == 0 && blockedAtCm > 0) feats[0].distCm = blockedAtCm;
+  // negative = "this far beyond the node I turned round after, plus however far past it I was"
+  if (nFeats && feats[0].distCm < 0) feats[0].distCm = -feats[0].distCm + (blockedAtCm > 0 ? blockedAtCm : 0);
   blockedAtCm = -1;
   report("ACK", task);
   if (nFeats == 0) {                         // already at the destination
@@ -525,12 +527,40 @@ static void followLine(bool detect, bool checkObstacle) {
         Serial.printf("[feature] %u/%u junction passed (by distance)\n", passed + 1, nFeats);
         passed++; travelled -= f.distCm;
       }
-    } else if (travelled >= f.distCm) {                 // wheels over the junction: turn
-      Serial.printf("[feature] %u/%u junction %s (by distance)\n", passed + 1, nFeats,
-                    f.act == A_LEFT ? "LEFT" : f.act == A_RIGHT ? "RIGHT" : "U_TURN");
-      passed++; pendingAct = f.act; travelled = 0; halt(); enter(TURN_AT_NODE); return;
+    } else {
+      // A turn here. At a square CORNER the tape simply ends: once the sensors run off it (after half the
+      // expected distance), drive on so the axle sits on the corner, then turn. Where the line carries on
+      // (a T-junction turn), turn by distance.
+      static uint8_t offReads = 0;
+      offReads = (n == 0) ? offReads + 1 : 0;
+      bool corner = f.kind == 'K';
+      // a corner: trust the end of the tape (works at any speed); distance only as a late backup
+      float turnAt = corner ? f.distCm * 1.6f + 4 : f.distCm;
+      // ...and drive STRAIGHT on the last stretch: steering into the corner would round it by itself
+      if (corner && travelled >= f.distCm * 0.5f) { holdSteer = true; lastErr = prevErr = 0; }
+      if (offReads >= 3 && travelled >= f.distCm * 0.5f && travelled < turnAt) {
+        offReads = 0;
+        Serial.printf("[feature] %u/%u corner/junction %s (end of tape after %.0f cm)\n", passed + 1, nFeats,
+                      f.act == A_LEFT ? "LEFT" : f.act == A_RIGHT ? "RIGHT" : "U_TURN", travelled);
+        passed++; pendingAct = f.act; lastErr = prevErr = 0;
+        enter(CENTER);
+        return;
+      }
+      if (travelled >= turnAt) {                          // wheels over the junction: turn
+        offReads = 0;
+        Serial.printf("[feature] %u/%u junction %s (by distance)\n", passed + 1, nFeats,
+                      f.act == A_LEFT ? "LEFT" : f.act == A_RIGHT ? "RIGHT" : "U_TURN");
+        passed++; pendingAct = f.act; travelled = 0; halt(); enter(TURN_AT_NODE); return;
+      }
+      // the tape ends at a corner: do not call that "line lost" while the corner is near
+      if (n == 0 && travelled >= f.distCm * 0.5f) lastLineSeen = t;
     }
   }
+  // On the AN wire, tape across the sensors (a corner or branch) can read like a bar: while the next
+  // feature is a turn at a corner/branch, only distance and the end of the tape count.
+  bool sideTurnPending = detect && passed < nFeats && feats[passed].pattern != 'C' &&
+                         feats[passed].act != A_PASS && feats[passed].act != A_GO;
+  if (sideTurnPending) detect = false;
 #endif
   if (detect && passed < nFeats) {
     const Feature& f = feats[passed];
@@ -691,14 +721,23 @@ static void controlStep() {
       if (t - phaseStart >= SCAN_MEASURE_MS) { state = SCAN_BACK; phaseStart = vnow(); offSince = vnow(); }
       break;
 
-    case SCAN_BACK:                          // turn back until the line is under the centre (within ~150 deg)
-      if (pivotToLine(scanLeft ? -1 : 1, 0, TURN_MAX_MS)) {
+    case SCAN_BACK: {                        // mirror the timed turn out, then settle with the centre on the tape
+      int dir = scanLeft ? -1 : 1;
+      uint32_t el = t - phaseStart, back = (uint32_t)(PIVOT_90_MS * 8 / 10);
+      bool done = false;
+      if (el < back) { setWheels(-dir * PIVOT_SPEED, dir * PIVOT_SPEED); break; }
+      if (centreOn(lineBits())) done = true;
+      else if (el > back + PIVOT_90_MS * 7 / 10) { fault("Turn back from the room scan did not find the line"); break; }
+      else setWheels(-dir * PIVOT_SPEED, dir * PIVOT_SPEED);
+      if (done) {
+        halt();
         bool occ = scanMin < OCCUPIED_CM;
         char msg[40]; snprintf(msg, sizeof msg, "nearest %.0f cm", scanMin > 900 ? -1.0f : scanMin);
         report("ARRIVED", task, -1, occ ? "OCCUPIED" : "FREE", false, msg);
         enter(ARRIVED);
       }
       break;
+    }
   }
 }
 

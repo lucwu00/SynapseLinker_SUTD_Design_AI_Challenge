@@ -101,9 +101,9 @@ System laptop (Windows)                    EDi-01 (OjanBot + phone)       Virtua
 ```
 
 1. Turn on **Settings › Network › Mobile hotspot** on the system laptop (band 2.4 GHz; name and password as in `config.h`). Its address on its own hotspot is normally **192.168.137.1**; `start_backend_robot.bat` prints it.
-2. Put EDi-01 **on the START bar, wheels on the bar, facing right**, then run `start_backend_robot.bat`.
+2. Put EDi-01 **on START (middle of the bottom line), facing left towards Consult Room 1**, then run `start_backend_robot.bat`.
 3. Switch the robot on. On the presenter console, EDi-01 shows as connected.
-4. **Before scene 8 and scene 9, put the robot back on START facing right.** Those scenes reset the clinic, and the system then assumes the robot is home.
+4. **Scene 8 right after scene 1 continues from the consult room** (leave the robot there). Before scene 9, or scene 8 on its own, put the robot back on START facing left: those reset the clinic and assume the robot is home.
 
 ### What the audience sees
 

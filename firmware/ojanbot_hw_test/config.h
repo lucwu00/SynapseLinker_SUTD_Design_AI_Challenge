@@ -127,10 +127,10 @@
 
 // ---------------------------------------------------------------- turning on the spot
 #ifndef PIVOT_SPEED
-#define PIVOT_SPEED       115
+#define PIVOT_SPEED        95   // measured on EDi-01 (foam table)
 #endif
 #ifndef PIVOT_90_MS
-#define PIVOT_90_MS       430   // >>> CALIBRATE time for a 90 degree pivot at PIVOT_SPEED (hw test 'p')
+#define PIVOT_90_MS       290   // measured on EDi-01 at PIVOT_SPEED 95. >>> CALIBRATE time for a 90 degree pivot at PIVOT_SPEED (hw test 'p')
 #endif
 #define LEAVE_LINE_MS     160   // a "turn until the line" must first spend this long off the line
 #define PIVOT_TIMEOUT_MS 3000   // never spin longer than this
@@ -161,7 +161,7 @@
 
 // ---------------------------------------------------------------- obstacle and room scan
 #ifndef OBSTACLE_CM
-#define OBSTACLE_CM          8    // stop if something is closer than this in front while driving
+#define OBSTACLE_CM          7    // stop if something is closer than this in front while driving
 #endif
 #define OBSTACLE_CONFIRM     3    // consecutive close readings needed (~70 ms apart)
 #define OBSTACLE_WAIT_MS  5000    // wait this long for it to clear before turning round

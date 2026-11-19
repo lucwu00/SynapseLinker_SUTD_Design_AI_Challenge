@@ -199,11 +199,19 @@ class RoutePlanner:
                 t = classify_turn(arrive, self.depart_dir(n, path[i + 1]))
                 action = "PASS" if t == "STRAIGHT" else t
             unknown = mid_segment and i == 0                   # we do not know how far back it turned round
+            # turned round mid-corridor but `src` has no tape mark (e.g. START): the first mark is `since`
+            # beyond src, plus however far the robot was past src - the robot adds that (negative = "add yours")
+            plus = mid_segment and not features and i > 0
             features.append({
-                "node": n, "marker": nodes[n].get("marker"), "kind": self.kind(n).upper(),
+                "node": n, "marker": nodes[n].get("marker"),
+                # a junction with only two corridors is a square CORNER: the tape just ends and turns
+                "kind": "CORNER" if self.kind(n) == "junction" and to_graph(self.map).degree(n) == 2
+                        else self.kind(n).upper(),
                 "pattern": self.expected_pattern(n, arrive) if arrive is not None else "C",
-                "action": action, "dist_cm": 0 if unknown else round(since * 100, 1),
-                "max_cm": round((self._edge_len(heading_from, n) if unknown else since) * 100 + 8, 1),
+                "action": action,
+                "dist_cm": 0 if unknown else (-round(since * 100, 1) if plus else round(since * 100, 1)),
+                "max_cm": round((self._edge_len(heading_from, n) if unknown else
+                                 since + (self._edge_len(heading_from, src) if plus else 0)) * 100 + 8, 1),
             })
             instr.append({"at_node": n, "at_marker": nodes[n].get("marker"),
                           "action": "STOP" if last else ("STRAIGHT" if action == "PASS" else action)})

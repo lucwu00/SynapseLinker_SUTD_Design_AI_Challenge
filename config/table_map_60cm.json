@@ -1,166 +1,186 @@
 {
- "_README": "60 x 60 cm demo table, double loop: outer rectangle of black tape plus a middle corridor, giving two alternative loops. Metres from the BOTTOM-LEFT table corner (presenter side at the bottom). Nodes are what the line sensor can recognise: station bars and T-junctions; corners are 'via' points. Replace this file (or set SYNAPSE_MAP) with a measured map of any shape later. See docs/TABLE_SETUP.md.",
- "units": "metres",
- "frame": "Origin (0,0) = bottom-left corner of the table top. +x to the right along the presenter's edge, +y away from the presenter.",
- "track_type": "double_loop",
- "table": {
-  "w": 0.6,
-  "h": 0.6
- },
- "track": {
-  "inset_m": 0.1,
-  "corner_radius_m": 0.08,
-  "tape_width_m": 0.019,
-  "mark_length_m": 0.08
- },
- "start_node": "START",
- "start_facing": "J_R",
- "robot_speed_m_s": 0.06,
- "obstacle_wait_s": 5,
- "obstacle_detect_m": 0.06,
- "nodes": {
-  "START": {
-   "x": 0.3,
-   "y": 0.1,
-   "marker": "M0",
-   "kind": "station",
-   "label": "Registration / START"
+  "_README": "60 x 60 cm demo table as built: a 50 x 50 cm square of black tape 5 cm in from every edge, sharp 90-degree corners, plus a middle corridor (two T-junctions). Metres from the BOTTOM-LEFT table corner (presenter side at the bottom). Station positions were estimated from a photo: measure yours and correct x / y here if a station is more than ~3 cm off. The robot starts on the middle of the bottom line facing LEFT (towards Consult Room 1). The four square corners are nodes (C_BL, C_BR, C_TR, C_TL): the robot turns on the spot there.",
+  "units": "metres",
+  "frame": "Origin (0,0) = bottom-left corner of the table top. +x to the right along the presenter's edge, +y away from the presenter.",
+  "track_type": "double_loop",
+  "table": {
+    "w": 0.6,
+    "h": 0.6
   },
-  "J_R": {
-   "x": 0.5,
-   "y": 0.3,
-   "marker": null,
-   "kind": "junction",
-   "label": "Right T-junction"
+  "track": {
+    "inset_m": 0.05,
+    "corner_radius_m": 0.0,
+    "tape_width_m": 0.025,
+    "mark_length_m": 0.08
   },
-  "S1": {
-   "x": 0.5,
-   "y": 0.38,
-   "marker": "S1",
-   "kind": "station"
+  "start_node": "START",
+  "start_facing": "C_BL",
+  "robot_speed_m_s": 0.06,
+  "obstacle_wait_s": 5,
+  "obstacle_detect_m": 0.06,
+  "nodes": {
+    "START": {
+      "x": 0.3,
+      "y": 0.05,
+      "marker": "M0",
+      "kind": "waypoint",
+      "label": "Registration / START (no tape bar: the robot never needs to recognise it)"
+    },
+    "J_R": {
+      "x": 0.55,
+      "y": 0.3,
+      "marker": null,
+      "kind": "junction",
+      "label": "Right T-junction"
+    },
+    "S1": {
+      "x": 0.55,
+      "y": 0.42,
+      "marker": "S1",
+      "kind": "station"
+    },
+    "S2": {
+      "x": 0.21,
+      "y": 0.55,
+      "marker": "S2",
+      "kind": "station"
+    },
+    "J_L": {
+      "x": 0.05,
+      "y": 0.3,
+      "marker": null,
+      "kind": "junction",
+      "label": "Left T-junction"
+    },
+    "S3": {
+      "x": 0.05,
+      "y": 0.19,
+      "marker": "S3",
+      "kind": "station"
+    },
+    "C_BL": {
+      "x": 0.05,
+      "y": 0.05,
+      "marker": null,
+      "kind": "junction",
+      "label": "Bottom-left corner"
+    },
+    "C_BR": {
+      "x": 0.55,
+      "y": 0.05,
+      "marker": null,
+      "kind": "junction",
+      "label": "Bottom-right corner"
+    },
+    "C_TR": {
+      "x": 0.55,
+      "y": 0.55,
+      "marker": null,
+      "kind": "junction",
+      "label": "Top-right corner"
+    },
+    "C_TL": {
+      "x": 0.05,
+      "y": 0.55,
+      "marker": null,
+      "kind": "junction",
+      "label": "Top-left corner"
+    }
   },
-  "S2": {
-   "x": 0.3,
-   "y": 0.5,
-   "marker": "S2",
-   "kind": "station"
+  "edges": [
+    {
+      "from": "START",
+      "to": "C_BR",
+      "label": "lower right corridor"
+    },
+    {
+      "from": "C_BR",
+      "to": "J_R"
+    },
+    {
+      "from": "J_R",
+      "to": "S1"
+    },
+    {
+      "from": "S1",
+      "to": "C_TR"
+    },
+    {
+      "from": "C_TR",
+      "to": "S2"
+    },
+    {
+      "from": "S2",
+      "to": "C_TL"
+    },
+    {
+      "from": "C_TL",
+      "to": "J_L"
+    },
+    {
+      "from": "J_L",
+      "to": "S3"
+    },
+    {
+      "from": "S3",
+      "to": "C_BL"
+    },
+    {
+      "from": "C_BL",
+      "to": "START"
+    },
+    {
+      "from": "J_L",
+      "to": "J_R",
+      "label": "middle corridor (alternative route)"
+    }
+  ],
+  "restricted_nodes": [],
+  "rooms": {
+    "ROOM_C": {
+      "node": "S1",
+      "station": "XRAY",
+      "label": "X-ray Room 2",
+      "classroom_label": "Station 1",
+      "zone": {
+        "x": 0.44,
+        "y": 0.42
+      }
+    },
+    "ROOM_B": {
+      "node": "S2",
+      "station": "XRAY",
+      "label": "X-ray Room 1",
+      "classroom_label": "Station 2",
+      "zone": {
+        "x": 0.21,
+        "y": 0.44
+      }
+    },
+    "ROOM_A": {
+      "node": "S3",
+      "station": "CONSULT",
+      "label": "Consultation Room 1",
+      "classroom_label": "Station 3",
+      "zone": {
+        "x": 0.16,
+        "y": 0.19
+      }
+    }
   },
-  "J_L": {
-   "x": 0.1,
-   "y": 0.3,
-   "marker": null,
-   "kind": "junction",
-   "label": "Left T-junction"
-  },
-  "S3": {
-   "x": 0.1,
-   "y": 0.22,
-   "marker": "S3",
-   "kind": "station"
+  "room_zone_note": "Person block (about 4 x 4 x 8 cm) inside the drawn room, about 11 cm from the tape, level with the station bar.",
+  "demo": {
+    "scene9": {
+      "room": "ROOM_C",
+      "edge": [
+        "START",
+        "C_BR"
+      ],
+      "box": {
+        "x": 0.45,
+        "y": 0.05
+      },
+      "note": "Box on the bottom line, between START and the bottom-right corner."
+    }
   }
- },
- "edges": [
-  {
-   "from": "START",
-   "to": "J_R",
-   "via": [
-    [
-     0.5,
-     0.1
-    ]
-   ],
-   "label": "lower right corridor"
-  },
-  {
-   "from": "J_R",
-   "to": "S1"
-  },
-  {
-   "from": "S1",
-   "to": "S2",
-   "via": [
-    [
-     0.5,
-     0.5
-    ]
-   ]
-  },
-  {
-   "from": "S2",
-   "to": "J_L",
-   "via": [
-    [
-     0.1,
-     0.5
-    ]
-   ]
-  },
-  {
-   "from": "J_L",
-   "to": "S3"
-  },
-  {
-   "from": "S3",
-   "to": "START",
-   "via": [
-    [
-     0.1,
-     0.1
-    ]
-   ]
-  },
-  {
-   "from": "J_L",
-   "to": "J_R",
-   "label": "middle corridor (alternative route)"
-  }
- ],
- "restricted_nodes": [],
- "rooms": {
-  "ROOM_C": {
-   "node": "S1",
-   "station": "XRAY",
-   "label": "X-ray Room 2",
-   "classroom_label": "Station 1",
-   "zone": {
-    "x": 0.39,
-    "y": 0.38
-   }
-  },
-  "ROOM_B": {
-   "node": "S2",
-   "station": "XRAY",
-   "label": "X-ray Room 1",
-   "classroom_label": "Station 2",
-   "zone": {
-    "x": 0.3,
-    "y": 0.39
-   }
-  },
-  "ROOM_A": {
-   "node": "S3",
-   "station": "CONSULT",
-   "label": "Consultation Room 1",
-   "classroom_label": "Station 3",
-   "zone": {
-    "x": 0.21,
-    "y": 0.22
-   }
-  }
- },
- "room_zone_note": "Person block (about 4 x 4 x 8 cm) centred on the zone: 11 cm inside the tape, level with the station bar.",
- "demo": {
-  "scene9": {
-   "room": "ROOM_C",
-   "edge": [
-    "START",
-    "J_R"
-   ],
-   "box": {
-    "x": 0.4,
-    "y": 0.1
-   },
-   "note": "Box on the bottom rail 10 cm right of START, just before the corner: the robot sees it before it sets off."
-  }
- }
 }

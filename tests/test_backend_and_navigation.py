@@ -300,16 +300,23 @@ def feats(r):
 
 
 def test_double_loop_features_and_turns():
+    """The table as built: square corners are nodes where the robot turns; START has no tape bar."""
     rp = table_planner()
-    assert rp.map["node_kind"]["J_L"] == "junction" and rp.map["node_kind"]["S1"] == "station"
-    r = rp.plan_to_node("START", "S1", "XRAY")                          # robot faces right at START
-    assert r.nodes == ["START", "J_R", "S1"] and r.start_action == "GO"
-    assert feats(r) == [("J_R", "L", "PASS"), ("S1", "C", "STOP")] and r.scan_side == "LEFT"
-    assert r.marks[0]["dist_cm"] == pytest.approx(36.6, abs=0.2)        # corner rounded to 8 cm radius
-    r = rp.plan_to_node("START", "S3", "CONSULT")                       # behind it -> turn round first
-    assert r.start_action == "U_TURN" and feats(r) == [("S3", "C", "STOP")] and r.scan_side == "RIGHT"
-    r = rp.plan_to_node("S1", "S3", "CONSULT", heading_from="J_R")      # over the top, past the left T
-    assert r.nodes == ["S1", "S2", "J_L", "S3"] and feats(r)[1] == ("J_L", "L", "PASS")
+    k = rp.map["node_kind"]
+    assert k["J_L"] == "junction" and k["S1"] == "station" and k["C_BL"] == "junction" and k["START"] == "waypoint"
+    r = rp.plan_to_node("START", "S3", "CONSULT")                       # robot faces left at START
+    assert r.nodes == ["START", "C_BL", "S3"] and r.start_action == "GO" and r.scan_side == "RIGHT"
+    assert feats(r) == [("C_BL", "R", "RIGHT"), ("S3", "C", "STOP")]
+    assert r.marks[0]["kind"] == "CORNER" and r.marks[0]["dist_cm"] == pytest.approx(25.0)
+    assert r.marks[1]["dist_cm"] == pytest.approx(14.0)
+    r = rp.plan_to_node("START", "S1", "XRAY")                          # behind it -> turn round first
+    assert r.start_action == "U_TURN" and r.nodes == ["START", "C_BR", "J_R", "S1"] and r.scan_side == "LEFT"
+    assert feats(r) == [("C_BR", "L", "LEFT"), ("J_R", "L", "PASS"), ("S1", "C", "STOP")]
+    r = rp.plan_to_node("S3", "S2", "XRAY", heading_from="C_BL")         # scene 8: past the left T, round the corner
+    assert r.start_action == "GO" and r.nodes == ["S3", "J_L", "C_TL", "S2"] and r.scan_side == "RIGHT"
+    assert feats(r) == [("J_L", "R", "PASS"), ("C_TL", "R", "RIGHT"), ("S2", "C", "STOP")]
+    r = rp.plan_to_node("S2", "S1", "XRAY", heading_from="C_TL")         # re-guide to the other X-ray room
+    assert feats(r) == [("C_TR", "R", "RIGHT"), ("S1", "C", "STOP")] and r.scan_side == "RIGHT"
 
 
 def test_double_loop_blocked_uses_middle_corridor():
@@ -319,19 +326,20 @@ def test_double_loop_blocked_uses_middle_corridor():
     a.navigate("P", "XRAY", "T1", rp.plan_to_node("START", "S1", "XRAY"))
     a.handle_status({"task_id": "T1", "event": "PATH_BLOCKED", "marks_passed": 0, "turned_around": True})
     d = [d for k, d in ev if k == "PATH_BLOCKED"][0]
-    assert d["edge"] == ["START", "J_R"] and d["mid_segment"]
+    assert d["edge"] == ["START", "C_BR"] and d["mid_segment"]
     rp.block(*d["edge"])
     r = rp.plan_to_node("START", "S1", "XRAY", heading_from=d["heading_from"], mid_segment=True)
-    assert r.nodes == ["START", "S3", "J_L", "J_R", "S1"] and r.start_action == "GO"
-    assert feats(r) == [("START", "C", "PASS"), ("S3", "C", "PASS"), ("J_L", "R", "RIGHT"),
+    assert r.nodes == ["START", "C_BL", "S3", "J_L", "J_R", "S1"] and r.start_action == "GO"
+    assert feats(r) == [("C_BL", "R", "RIGHT"), ("S3", "C", "PASS"), ("J_L", "R", "RIGHT"),
                         ("J_R", "C", "LEFT"), ("S1", "C", "STOP")]
-    assert r.marks[0]["dist_cm"] == 0                                   # unknown: turned round mid-corridor
+    # START has no tape bar: 25 cm to the corner PLUS however far past START the robot was (it adds that)
+    assert r.marks[0]["dist_cm"] == -25.0 and r.marks[0]["max_cm"] > 25 + 25
     rp.block("J_L", "J_R")                                              # middle corridor too -> over the top
-    r = rp.plan_to_node("START", "S1", "XRAY", heading_from="J_R", mid_segment=True)
-    assert r.nodes == ["START", "S3", "J_L", "S2", "S1"] and feats(r)[2] == ("J_L", "R", "PASS")
-    rp.block("S2", "J_L")
+    r = rp.plan_to_node("START", "S1", "XRAY", heading_from="C_BR", mid_segment=True)
+    assert r.nodes == ["START", "C_BL", "S3", "J_L", "C_TL", "S2", "C_TR", "S1"]
+    rp.block("S2", "C_TL")
     with pytest.raises(MapError):
-        rp.plan_to_node("START", "S1", "XRAY", heading_from="J_R", mid_segment=True)
+        rp.plan_to_node("START", "S1", "XRAY", heading_from="C_BR", mid_segment=True)
 
 
 def test_blocked_before_leaving_start_mark():
@@ -344,18 +352,18 @@ def test_blocked_before_leaving_start_mark():
     assert not d["mid_segment"]
     rp.block(*d["edge"])
     r = rp.plan_to_node("START", "S1", "XRAY", heading_from=d["heading_from"], mid_segment=d["mid_segment"])
-    assert r.start_action == "GO" and feats(r)[0] == ("S3", "C", "PASS")   # START not counted again
+    assert r.start_action == "GO" and feats(r)[0] == ("C_BL", "R", "RIGHT") and r.marks[0]["dist_cm"] == 25.0
 
 
 def test_table_command_contract():
     rp = table_planner()
     a = ESP32Adapter("EDi-01", nodes=rp.map["nodes"])
-    r = rp.plan_to_node("START", "S1", "XRAY"); r.room_id = "ROOM_C"
-    a.navigate("P", "XRAY", "T1", r)
+    r = rp.plan_to_node("START", "S3", "CONSULT"); r.room_id = "ROOM_A"
+    a.navigate("P", "CONSULT", "T1", r)
     c = a.poll_command()
-    assert c["start_action"] == "GO" and c["scan_room_on_arrival"] and c["scan_side"] == "LEFT"
-    assert [(f["t"], f["p"], f["a"]) for f in c["features"]] == [("J", "L", "PASS"), ("S", "C", "STOP")]
-    assert c["features"][1]["d"] == 8.0 and c["features"][1]["m"] == 16.0
+    assert c["start_action"] == "GO" and c["scan_room_on_arrival"] and c["scan_side"] == "RIGHT"
+    assert [(f["t"], f["p"], f["a"]) for f in c["features"]] == [("K", "R", "RIGHT"), ("S", "C", "STOP")]
+    assert c["features"][0]["d"] == 25.0 and c["features"][1]["d"] == 14.0 and c["features"][1]["m"] == 22.0
 
 
 @pytest.fixture
@@ -374,12 +382,12 @@ def test_table_scenes_8_and_9(table_svc):
     _drive(svc)
     p = svc._patient("ORTHO_201")
     assert p["status"] == "QUEUED" and p["assigned_room"] == "ROOM_B"
-    assert svc.robot_heading["EDi-01"] == "S1"
+    assert svc.robot_heading["EDi-01"] == "C_TR"                      # came round the top-right corner
     demo.scene(svc, 9)
     _drive(svc)
     p = svc._patient("ORTHO_201")
     assert p["status"] == "QUEUED" and p["assigned_room"] == "ROOM_C"
-    assert ("J_R", "START") in svc.planner.blocked or ("START", "J_R") in svc.planner.blocked
+    assert ("C_BR", "START") in svc.planner.blocked or ("START", "C_BR") in svc.planner.blocked
     types = [e["type"] for e in svc.db.query("SELECT type FROM events")]
     assert "CORRIDOR_BLOCKED" in types and "REROUTED" in types
 

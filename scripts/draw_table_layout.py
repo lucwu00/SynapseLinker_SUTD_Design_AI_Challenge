@@ -86,7 +86,7 @@ ax.text(30, 33.2, "middle corridor (alternative route)", ha="center", va="center
 sx, sy = N[m["start_node"]]
 ax.add_patch(FancyBboxPatch((sx - 5, sy - 5.5), 10, 11, boxstyle="round,pad=0.3", fc="#d9ecec", ec=CAST, lw=1.0, alpha=0.45, zorder=4))
 ax.add_patch(FancyArrowPatch((sx - 2.5, sy), (sx + 6.5, sy), arrowstyle="-|>", mutation_scale=14, color=CAST, lw=2, zorder=5))
-ax.text(1.2, 5.0, "EDi-01 starts with its wheels on\nthe START bar, facing right", ha="left", va="center", fontsize=6.8, color=CAST)
+ax.text(1.2, 5.0, "EDi-01 starts with its wheels on\nthe START bar, facing left", ha="left", va="center", fontsize=6.8, color=CAST)
 box = m["demo"]["scene9"]["box"]; bx, by = box["x"] * 100, box["y"] * 100
 ax.add_patch(Rectangle((bx - 2, by - 2), 4, 4, fc=WARN, ec="none", zorder=5, alpha=0.9))
 ax.annotate(f"Scene 9 trolley box ({bx:.0f}, {by:.0f})\nput down only for scene 9", (bx + 1.5, by - 2), (bx + 2, 3.0),

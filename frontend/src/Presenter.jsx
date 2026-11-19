@@ -86,15 +86,16 @@ function OrdersEditor({ p, act }) {
   const ci = pending.indexOf("CONSULT");
   const side = (i) => (ci < 0 ? 0 : i < ci ? -1 : 1);                 // steps never cross the consultation
   const canSwap = (i, j) => j >= 0 && j < pending.length && !locked(pending[i], i) && !locked(pending[j], j) && side(i) === side(j);
+  const movable = (i) => pending.some((_, j) => j !== i && canSwap(i, j));   // has somewhere it may go
   return (
     <div className="orders-edit">
-      <span className="small muted">Steps to do{pending.some((_, i) => canSwap(i, i + 1)) ? " (drag or use ‹ › to reorder)" : ""}:</span>
+      <span className="small muted">Steps to do{pending.some((_, i) => movable(i)) ? " (drag or use ‹ › to reorder)" : ""}:</span>
       {pending.map((x, i) => {
         const fixed = ["REGISTRATION", "CONSULT", "PAYMENT"].includes(x) || (x === busy && pending.indexOf(x) === i);
         return (
           <span key={`${x}-${i}`} className={`chip ${x === busy ? "chip-now" : ""} ${drag === i ? "chip-drag" : ""}`}
-                draggable={!locked(x, i)} onDragStart={() => setDrag(i)} onDragEnd={() => setDrag(null)}
-                onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (drag != null && !locked(x, i) && side(drag) === side(i)) move(drag, i); setDrag(null); }}>
+                draggable={movable(i)} onDragStart={() => setDrag(i)} onDragEnd={() => setDrag(null)}
+                onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (drag != null && canSwap(drag, i)) move(drag, i); setDrag(null); }}>
             {canSwap(i, i - 1) && <button className="chip-mv" aria-label={`Move ${LABEL[x]} earlier`} onClick={() => move(i, i - 1)}>‹</button>}
             {LABEL[x]}
             {canSwap(i, i + 1) && <button className="chip-mv" aria-label={`Move ${LABEL[x]} later`} onClick={() => move(i, i + 1)}>›</button>}

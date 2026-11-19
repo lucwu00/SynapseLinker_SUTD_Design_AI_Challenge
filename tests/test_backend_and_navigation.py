@@ -615,3 +615,13 @@ def test_nurse_priority_and_queue_order(svc):
     assert any(q["station_id"] == "XRAY" and q["manual"] for q in svc.dashboard_state()["station_queues"])
     svc.set_queue_order("XRAY", [])
     assert svc.queue_order("XRAY") == ["T2", "T1"]
+
+
+def test_xray_added_while_walking_to_consult_is_a_doctors_order(table_svc):
+    svc, A = table_svc, "ORTHO_001"
+    demo.scene(svc, 1)                                                   # EDi-01 still driving him there
+    svc.change_orders(A, add=["XRAY"])
+    assert svc._patient(A)["required_steps"] == ["REGISTRATION", "CONSULT", "XRAY", "REVIEW", "PAYMENT"]
+    _drive(svc)
+    demo.scene(svc, 2); demo.scene(svc, 3)                               # no R07 error
+    assert svc._patient(A)["assigned_destination"] == "XRAY"

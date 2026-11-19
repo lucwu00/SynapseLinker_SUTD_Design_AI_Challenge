@@ -143,6 +143,12 @@ def d3(svc):
     if not _done(svc, A, "CONSULT"):
         if _status(svc, A) == "QUEUED":
             svc.start_service(A)
+        pa = svc._patient(A)
+        pend = svc._pending(pa)
+        if "XRAY" in pend and pend.index("XRAY") < pend.index("CONSULT"):    # added as a pre-consult test by hand:
+            req = list(pa["required_steps"])                                 # it is the doctor's order, after the consult
+            req.remove("XRAY")
+            svc.db.update("patients", "patient_id", A, required_steps=req)
         add = [x for x in ("XRAY", "REVIEW") if not _pending(svc, A, x)]   # Add X-ray may have been pressed already
         svc.complete_service(A, "CONSULT", added_steps=add or None, recorded_by="Doctor")
     elif not _pending(svc, A, "XRAY") and not _done(svc, A, "XRAY"):

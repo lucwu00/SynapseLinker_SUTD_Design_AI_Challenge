@@ -753,7 +753,7 @@ class SynapseService:
             req, done = list(p["required_steps"]), list(p["completed_steps"])
             busy = p["assigned_destination"] if p["status"] in ("GUIDED", "QUEUED", "IN_SERVICE") else None
             # an order made while the patient is with the doctor is for after the consultation
-            in_consult = p["status"] in ("IN_SERVICE", "QUEUED") and p["assigned_destination"] == "CONSULT"
+            in_consult = p["status"] in ("GUIDED", "IN_SERVICE", "QUEUED") and p["assigned_destination"] == "CONSULT"
             consulted = "CONSULT" in done or in_consult
             for step in remove or []:
                 if step in FIXED_STEPS:

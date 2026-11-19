@@ -207,6 +207,8 @@ export default function OpsBoard() {
         </div>
 
         <aside className="o-side">
+          <div className="o-floor"><FloorMap compact masked /></div>
+
           <section className="o-panel">
             <h2 className="o-h">Alerts <span className="o-dim">{openAlerts.length} open</span></h2>
             {s.alerts.length === 0 ? <p className="o-empty">No alerts.</p> : (
@@ -253,8 +255,6 @@ export default function OpsBoard() {
               );
             })}
           </section>
-
-          <div className="o-floor"><FloorMap compact /></div>
 
           <section className="o-panel">
             <h2 className="o-h">Event log</h2>

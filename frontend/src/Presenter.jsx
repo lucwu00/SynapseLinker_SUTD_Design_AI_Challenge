@@ -4,16 +4,19 @@ import JourneyLine from "./JourneyLine";
 import Replay from "./Replay";
 import FloorMap from "./FloorMap";
 
-const SCENES = [
-  [1, "Patient checks in"],
-  [2, "Pre-op test order"],
-  [3, "Test-room congestion"],
-  [4, "Blood-test room closes"],
-  [5, "Robot drives"],
-  [6, "Robot handover"],
-  [7, "Before/after result"],
-  [8, "Room occupied, re-guide"],
-  [9, "Corridor blocked, reroute"],
+const STORY = [                                        // the demo story: run in order
+  [1, "Patient A checks in"],
+  [2, "Patient B checks in, X-ray first"],
+  [3, "A to X-ray: room occupied, re-guide"],
+  [4, "B to consultation (EDi-01)"],
+  [5, "A after X-ray: EDi-02 voice"],
+];
+const MORE = [                                         // extra scenes, after the story (press Reset demo first)
+  [6, "Patient checks in"],
+  [7, "Pre-op test order"],
+  [8, "Test-room congestion"],
+  [9, "Blood-test room closes"],
+  [10, "Corridor blocked, reroute"],
 ];
 
 function Risk({ p }) {
@@ -318,11 +321,17 @@ export default function Presenter() {
       </header>
 
       <nav className="scenes" aria-label="Demo scenes">
-        {SCENES.map(([n, t]) => <button key={n} onClick={() => runScene(n)}><span className="scene-n">{n}</span>{t}</button>)}
+        <span className="scene-group-t">Demo story</span>
+        {STORY.map(([n, t]) => <button key={n} className={scene?.scene === n ? "on" : ""} onClick={() => runScene(n)}><span className="scene-n">{n}</span>{t}</button>)}
         <span className="tabs">
           <button className={tab === "floor" ? "on" : ""} onClick={() => setTab("floor")}>Clinic floor</button>
           <button className={tab === "replay" ? "on" : ""} onClick={() => setTab("replay")}>Before/after evaluation</button>
         </span>
+      </nav>
+
+      <nav className="scenes scenes-more" aria-label="More scenes">
+        <span className="scene-group-t">More scenes</span>
+        {MORE.map(([n, t]) => <button key={n} className={scene?.scene === n ? "on" : ""} onClick={() => runScene(n)}><span className="scene-n">{n}</span>{t}</button>)}
       </nav>
 
       {msg && <p className="error" role="alert">{msg} <button onClick={() => setMsg(null)}>Dismiss</button></p>}
@@ -334,6 +343,14 @@ export default function Presenter() {
         </section>
       )}
 
+      {tab !== "replay" && (
+        <section className="patients-flow">
+          <h2>Patients</h2>
+          {s.patients.length === 0 && <p className="empty">No patients yet. Run scene 1, or check one in.</p>}
+          {s.patients.map((p) => <PatientRow key={p.patient_id} p={p} robots={s.robots} act={act} />)}
+        </section>
+      )}
+
       {tab === "replay" ? <Replay /> : (
         <div className="grid">
           <main>
@@ -342,11 +359,6 @@ export default function Presenter() {
               <h2>Stations</h2>
               <p className="small muted">Waits and risks are live predictions from the trained models. "Waiting" includes simulated patients from other departments.</p>
               <div className="stations">{s.stations.map((x) => <StationCard key={x.station_id} s={x} act={act} />)}</div>
-            </section>
-            <section>
-              <h2>Patients</h2>
-              {s.patients.length === 0 && <p className="empty">No patients yet. Check one in, or run scene 1.</p>}
-              {s.patients.map((p) => <PatientRow key={p.patient_id} p={p} robots={s.robots} act={act} />)}
             </section>
           </main>
           <aside>

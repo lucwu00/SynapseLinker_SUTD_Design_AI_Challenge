@@ -470,9 +470,42 @@ class SynapseService:
         room = self.db.one("SELECT room_id, label, classroom_label, node FROM rooms WHERE room_id=?",
                            (p["assigned_room"],)) if p.get("assigned_room") else None
         return dict(patient=p, stages=stages, eligible_now=el, remaining_steps=rem, patients_ahead=ahead, room=room,
+                    estimate=self._visit_estimate(p, q, now),
                     queue=dict(station=q["station_id"], step=q["step"], waiting_min=round(now - q["joined_min"], 1),
                                predicted_wait_min=q["predicted_wait_min"], started=q["started_min"] is not None) if q else None,
                     navigation_task=task, history=history, clinic_time=fmt_min(now))
+
+    def _visit_estimate(self, p: dict, q: dict | None, now: float) -> dict | None:
+        """How long the rest of the visit is likely to take if the queues stay as they are now: for every step
+        still to do, the Model A predicted wait for someone joining now + the usual service time + walking.
+        It is an estimate that changes as the clinic changes (see the reasons the robot gives)."""
+        if p["status"] == "COMPLETED":
+            return None
+        from flow.routing_engine import expected_service, expected_travel
+        left = list(p["completed_steps"]); pend = []
+        for st in p["required_steps"]:
+            if st in left: left.remove(st)
+            else: pend.append(st)
+        cur = p["assigned_destination"] if p["status"] in ("GUIDED", "QUEUED", "IN_SERVICE") else None
+        mob, vt = p.get("mobility") or "independent", p["visit_type"]
+        steps, total, upper = [], 0.0, 0.0
+        for i, st in enumerate(pend):
+            pred = self.station_predictions.get("CONSULT" if st == "REVIEW" else st, {})
+            wait = float(pred.get("predicted_wait_new_arrival_min") or 0)
+            hi = float((pred.get("expected_range_min") or [0, wait])[-1] or wait)
+            svc = float(expected_service(st, vt, mob))
+            walk = 0.0 if (st == cur and p["status"] != "GUIDED") else float(expected_travel(mob))
+            if st == cur and q:                                     # already in that queue / being seen
+                if q.get("started_min") is not None:
+                    wait, hi, svc = 0.0, 0.0, max(svc - (now - q["started_min"]), 1.0)
+                else:
+                    gone = now - q["joined_min"]
+                    wait = max((q.get("predicted_wait_min") or wait) - gone, 0.0); hi = max(hi - gone, wait)
+            steps.append(dict(step=st, wait_min=round(wait), service_min=round(svc)))
+            total += wait + svc + walk
+            upper += hi + svc + walk
+        return dict(remaining_min=round(total), upper_min=round(max(upper, total)), finish_at=fmt_min(now + total),
+                    steps=steps, before_consult="CONSULT" not in p["completed_steps"], current=cur)
 
     def confirm_destination(self, pid: str, step: str, robot_id: str | None = None, source: str = "patient") -> dict:
         """Patient/staff accepts a destination. Re-checks rules and availability; creates a robot task."""
@@ -1021,7 +1054,13 @@ class SynapseService:
                         classroom_label=v.get("classroom_label"), staffed=bool(rooms[k]["staffed"]),
                         occupied=bool(rooms[k]["occupied"]), source=rooms[k]["occupancy_source"],
                         person_present=k in self.world["people"]) for k, v in m["rooms"].items() if k in rooms],
-            robots=robots, simulated_world=any(a.__class__.__name__ == "SimulationAdapter" for a in self.adapters.values()))
+            robots=robots, simulated_world=any(a.__class__.__name__ == "SimulationAdapter" for a in self.adapters.values()),
+            patients=[dict(patient_id=p["patient_id"], name=p["display_name"], queue_no=p.get("queue_no"),
+                           status=p["status"], step=p["assigned_destination"], room_id=p["assigned_room"],
+                           robot_id=p["robot_id"],
+                           robot_kind=(self.cfg["robots"].get(p["robot_id"]) or {}).get("kind") if p["robot_id"] else None)
+                      for p in (self._patient(r["patient_id"]) for r in
+                                self.db.query("SELECT patient_id FROM patients WHERE status != 'COMPLETED'"))])
 
     def robot_command(self, rid: str, action: str, task_id: str | None = None) -> dict:
         with self.lock:

@@ -25,7 +25,7 @@ function corridorPath(pts, r, px, py) {
 
 /** Live view of the classroom tape track: corridors, rooms, the robot and its route.
  *  Click a corridor to place or remove a simulated obstacle; use the room buttons to simulate people. */
-export default function FloorMap({ compact = false }) {
+export default function FloorMap({ compact = false, masked = false }) {
   const [m, setM] = useState(null);
   const [err, setErr] = useState(null);
 
@@ -66,6 +66,14 @@ export default function FloorMap({ compact = false }) {
   };
   const toggleObstacle = (e) =>
     api("/navigation/obstacles", "POST", { from_node: e.from, to_node: e.to, present: !e.obstacle }).then(setM).catch((x) => setErr(x.message));
+  const strip = (n) => (n || "").replace(/\s*\(fictional\)/i, "");
+  const pts = m.patients || [];
+  const where = (p) => {
+    const r = m.rooms.find((x) => x.room_id === p.room_id), st = LABEL[p.step] || p.step;
+    return r ? r.label : st;
+  };
+  const short = (p) => (masked ? `Q${p?.queue_no || ""}` : strip(p?.name));
+  const who = (pid) => short(pts.find((p) => p.patient_id === pid));
   const room = (id, body) => api(`/rooms/${id}/status`, "POST", body).then(setM).catch((x) => setErr(x.message));
 
   return (
@@ -145,10 +153,22 @@ export default function FloorMap({ compact = false }) {
           {robot?.position && (
             <g>
               <circle cx={px(robot.position.x)} cy={py(robot.position.y)} r="11" className={`bot bot-${robot.state.toLowerCase()}`} />
-              <text x={px(robot.position.x)} y={py(robot.position.y) - 16} className="bot-t">{robot.robot_id}</text>
+              <text x={px(robot.position.x)} y={py(robot.position.y) - 16} className="bot-t">{robot.robot_id}{robot.patient_id && robot.route.length ? ` + ${who(robot.patient_id)}` : ""}</text>
             </g>
           )}
         </svg>
+        {pts.length > 0 && (
+          <ul className="pt-list">
+            {pts.map((p) => (
+              <li key={p.patient_id}>
+                <strong>{short(p)}</strong>{!masked && p.queue_no ? ` (${p.queue_no})` : ""}:{" "}
+                {p.status === "AWAITING_GUIDANCE" ? "next step being decided" : p.status === "GUIDED" ? `going to ${where(p)}`
+                  : p.status === "QUEUED" ? `waiting in ${where(p)}` : p.status === "IN_SERVICE" ? `with staff in ${where(p)}` : p.status.toLowerCase()}
+                {p.robot_id && <span className={`pt-bot ${p.robot_kind === "virtual" ? "pt-virtual" : ""}`}>{p.robot_id}{p.robot_kind === "virtual" ? " (virtual, voice)" : ""}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
         {!compact && <ul className="room-list">
           {m.rooms.map((r) => (
             <li key={r.room_id}>

@@ -36,9 +36,16 @@ const INTENTS = {
            ms: ["bawa saya", "tunjuk jalan"], ta: ["அழைத்து", "கூட்டிச்"] },
   wait: { en: ["how long", "wait", "waiting", "when will", "when is my", "my turn", "how many people", "ahead of me"],
           zh: ["多久", "等多久", "等候", "轮到"], ms: ["berapa lama", "tunggu", "giliran"], ta: ["எவ்வளவு நேரம்", "காத்திரு", "முறை"] },
-  left: { en: ["what else", "steps left", "left to do", "how many more", "anything else", "after this", "remaining", "what's left", "finish", "done today"],
-          zh: ["还有什么", "还要", "剩下", "之后"], ms: ["lagi", "selepas ini", "berapa langkah"], ta: ["மீதம்", "இதற்குப் பிறகு"] },
-  next: { en: ["where do i go", "where should i go", "next", "where to", "where am i going", "lost", "which room", "where is my", "where now"],
+  total: { en: ["in total", "altogether", "how much longer", "whole visit", "whole appointment", "appointment take", "will it take",
+                "will this take", "when will i finish", "when can i leave", "when can i go home", "be done", "finish", "hours", "go home"],
+           zh: ["总共", "一共", "全部", "什么时候结束", "什么时候可以走", "什么时候完", "几点完", "要多久才"],
+           ms: ["berapa lama lagi", "keseluruhan", "semua sekali", "bila habis", "bila boleh balik", "bila selesai", "jam"],
+           ta: ["மொத்தம்", "எப்போது முடியும்", "எப்போது வீட்டுக்கு", "மணி நேரம்"] },
+  after: { en: ["after", "and then", "what's next", "what is next", "next step", "where am i going", "where will i go", "go next"],
+           zh: ["之后", "然后", "接下来", "做完"], ms: ["selepas", "lepas itu", "kemudian", "langkah seterusnya"], ta: ["பிறகு", "அடுத்த படி"] },
+  left: { en: ["what else", "steps left", "left to do", "how many more", "anything else", "remaining", "what's left"],
+          zh: ["还有什么", "还要", "剩下"], ms: ["apa lagi", "berapa langkah"], ta: ["மீதம்"] },
+  next: { en: ["where do i go", "where should i go", "next", "where to", "lost", "which room", "where is my", "where now"],
           zh: ["下一步", "去哪", "哪里", "迷路"], ms: ["seterusnya", "ke mana", "di mana", "sesat"], ta: ["அடுத்து", "எங்கே", "வழி தெரியவில்லை"] },
   hello: { en: ["hi", "hey", "hello", "good morning", "good afternoon", "good evening", "morning"], zh: ["你好", "您好", "哈喽", "早安", "早上好"],
            ms: ["hai", "helo", "hello", "selamat pagi", "selamat petang", "assalamualaikum"], ta: ["வணக்கம்", "ஹலோ"] },
@@ -62,9 +69,9 @@ export const FAQ = [
          zh: "厕所在登记柜台旁边，旁边也有无障碍厕所。",
          ms: "Tandas terletak di sebelah kaunter Pendaftaran. Tandas mesra OKU juga ada di sebelahnya.",
          ta: "கழிப்பறைகள் பதிவு கவுண்டருக்கு அருகில் உள்ளன. அதன் அருகே மாற்றுத்திறனாளிகளுக்கான கழிப்பறையும் உள்ளது." } },
-  { k: { en: ["pay", "payment", "nets", "credit card", "paynow", "cash", "medisave", "insurance", "bill", "cost", "how much", "subsidy", "charges"],
-         zh: ["付款", "付钱", "费用", "多少钱", "保健储蓄", "保险", "津贴", "账单", "收费"],
-         ms: ["bayar", "kos", "berapa harga", "insurans", "subsidi", "bil", "caj"], ta: ["கட்டண", "பணம்", "செலவு", "எவ்வளவு ஆகும்", "காப்பீ", "மானிய"] },
+  { k: { en: ["pay", "payment", "nets", "credit card", "paynow", "cash", "insurance", "bill", "cost", "how much", "charges"],
+         zh: ["付款", "付钱", "费用", "多少钱", "保险", "账单", "收费"],
+         ms: ["bayar", "kos", "berapa harga", "insurans", "bil", "caj"], ta: ["கட்டண", "பணம்", "செலவு", "எவ்வளவு ஆகும்", "காப்பீ"] },
     a: { en: "You pay at the Payment counter near the end of your visit, by NETS, credit card, PayNow or cash. Staff there can also help with Medisave, insurance and subsidy questions, and give you a cost estimate.",
          zh: "就诊结束前请到付款柜台付款，可用 NETS、信用卡、PayNow 或现金。柜台人员也可以帮您处理保健储蓄（Medisave）、保险和津贴的问题，并提供费用估算。",
          ms: "Anda membuat bayaran di kaunter Pembayaran menjelang akhir lawatan, melalui NETS, kad kredit, PayNow atau tunai. Kakitangan di sana juga boleh membantu tentang Medisave, insurans dan subsidi, serta memberi anggaran kos.",
@@ -76,7 +83,7 @@ export const FAQ = [
          zh: "如果您需要病假单，医生会在看诊时给您。如果忘了，请告诉付款柜台的工作人员。",
          ms: "Doktor akan memberi sijil cuti sakit (MC) semasa konsultasi jika anda memerlukannya. Jika terlupa, beritahu kakitangan di kaunter Pembayaran.",
          ta: "தேவைப்பட்டால், மருத்துவர் ஆலோசனையின்போது மருத்துவச் சான்றிதழ் (MC) தருவார். மறந்துவிட்டால், கட்டணக் கவுண்டரில் உள்ள ஊழியரிடம் சொல்லுங்கள்." } },
-  { k: { en: ["water", "drink", "food", "hungry", "cafe", "café", "canteen", "coffee", "snack"], zh: ["喝水", "饮水", "水", "饿", "咖啡", "食物", "餐厅", "吃东西"],
+  { over: true, k: { en: ["water", "drink", "food", "hungry", "cafe", "café", "canteen", "coffee", "snack"], zh: ["喝水", "饮水", "水", "饿", "咖啡", "食物", "餐厅", "吃东西"],
          ms: ["air minum", "minum", "makan", "lapar", "kafe", "kopi"], ta: ["தண்ணீர்", "குடிக்க", "சாப்பாடு", "பசி", "காபி", "உணவு"] },
     a: { en: "There is a water point next to the waiting area, and a café on level 1. If you have a blood test or X-ray coming up, check with staff before you leave the clinic.",
          zh: "候诊区旁边有饮水处，一楼有咖啡馆。如果您接下来要验血或照X光，离开诊所前请先问工作人员。",
@@ -129,10 +136,10 @@ export const FAQ = [
          ta: "காத்திருப்புப் பகுதியில் சார்ஜ் செய்யும் இடங்கள் உள்ளன." } },
   { k: { en: ["why", "so long", "so slow", "taking long", "skip the queue", "who goes first", "why did they go first", "order"],
          zh: ["为什么", "这么久", "太慢", "插队"], ms: ["kenapa", "mengapa", "lama sangat", "lambat"], ta: ["ஏன்", "தாமதம்"] },
-    a: { en: "Patients are seen by appointment time and by clinical priority, which staff decide. Waiting times are estimates and can change. I suggest the station that is likely to be quickest for you.",
-         zh: "病人按预约时间和临床优先次序看诊，这由工作人员决定。等候时间只是估计，可能会改变。我会建议对您来说可能最快的站点。",
-         ms: "Pesakit dilihat mengikut masa temujanji dan keutamaan klinikal yang ditentukan oleh kakitangan. Masa menunggu hanyalah anggaran dan boleh berubah. Saya mencadangkan stesen yang mungkin paling cepat untuk anda.",
-         ta: "நோயாளிகள் சந்திப்பு நேரம் மற்றும் ஊழியர்கள் முடிவு செய்யும் மருத்துவ முன்னுரிமைப்படி பார்க்கப்படுகிறார்கள். காத்திருப்பு நேரங்கள் மதிப்பீடுகள் மட்டுமே, மாறலாம். உங்களுக்கு விரைவாக இருக்கக்கூடிய இடத்தை நான் பரிந்துரைக்கிறேன்." } },
+    a: { en: "Patients are seen by appointment time and by clinical priority, which staff decide. Sometimes the doctor also needs your test results to be ready first. Waiting times are estimates and can change. I suggest the station that is likely to be quickest for you.",
+         zh: "病人按预约时间和临床优先次序看诊，这由工作人员决定。有时医生也需要等您的检验结果出来。等候时间只是估计，可能会改变。我会建议对您来说可能最快的站点。",
+         ms: "Pesakit dilihat mengikut masa temujanji dan keutamaan klinikal yang ditentukan oleh kakitangan. Kadangkala doktor juga perlu menunggu keputusan ujian anda. Masa menunggu hanyalah anggaran dan boleh berubah. Saya mencadangkan stesen yang mungkin paling cepat untuk anda.",
+         ta: "நோயாளிகள் சந்திப்பு நேரம் மற்றும் ஊழியர்கள் முடிவு செய்யும் மருத்துவ முன்னுரிமைப்படி பார்க்கப்படுகிறார்கள். சில நேரங்களில் உங்கள் பரிசோதனை முடிவுகளுக்காக மருத்துவர் காத்திருக்க வேண்டும். காத்திருப்பு நேரங்கள் மதிப்பீடுகள் மட்டுமே, மாறலாம். உங்களுக்கு விரைவாக இருக்கக்கூடிய இடத்தை நான் பரிந்துரைக்கிறேன்." } },
   { k: { en: ["smoke", "smoking"], zh: ["抽烟", "吸烟"], ms: ["merokok", "rokok"], ta: ["புகை"] },
     a: { en: "Smoking is not allowed anywhere in the hospital.", zh: "医院内全面禁烟。",
          ms: "Merokok tidak dibenarkan di mana-mana kawasan hospital.", ta: "மருத்துவமனையில் எங்கும் புகைபிடிக்கக் கூடாது." } },
@@ -142,6 +149,12 @@ export const FAQ = [
          zh: "诊所于平日上午8时30分至下午5时开放。星期六的门诊请询问工作人员。",
          ms: "Klinik dibuka dari 8.30 pagi hingga 5 petang pada hari bekerja. Sila tanya kakitangan tentang sesi hari Sabtu.",
          ta: "மருத்துவமனை வார நாட்களில் காலை 8:30 முதல் மாலை 5 மணி வரை இயங்கும். சனிக்கிழமை பற்றி ஊழியரிடம் கேளுங்கள்." } },
+  {"k": {"en": ["which doctor", "my doctor", "specific doctor", "change doctor", "different doctor", "seeing patients", "seeing any patient", "on duty", "doctor's schedule", "is doctor", "is dr", "see dr", "see doctor"], "zh": ["哪位医生", "哪个医生", "指定医生", "换医生", "医生今天", "医生有没有"], "ms": ["doktor mana", "tukar doktor", "doktor tertentu", "doktor bertugas"], "ta": ["எந்த மருத்துவர்", "மருத்துவரை மாற்ற", "குறிப்பிட்ட மருத்துவர்"]}, "a": {"en": "I can't check doctors' schedules. You will see the doctor assigned to your appointment. Asking for a specific doctor by name usually means you are charged as a private patient instead of a subsidised one. Please ask at the Registration counter.", "zh": "我无法查看医生的值班表。您会由预约时安排的医生看诊。如果指定某位医生，通常会以私人病人收费，而不是津贴病人。请到登记柜台询问。", "ms": "Saya tidak dapat menyemak jadual doktor. Anda akan berjumpa doktor yang ditetapkan untuk temujanji anda. Meminta doktor tertentu biasanya bermakna anda dikenakan caj sebagai pesakit swasta, bukan pesakit bersubsidi. Sila tanya di kaunter Pendaftaran.", "ta": "மருத்துவர்களின் அட்டவணையை என்னால் பார்க்க முடியாது. உங்கள் சந்திப்புக்கு ஒதுக்கப்பட்ட மருத்துவரைப் பார்ப்பீர்கள். குறிப்பிட்ட மருத்துவரைக் கேட்டால், பொதுவாக மானிய நோயாளியாக அல்லாமல் தனியார் நோயாளியாகக் கட்டணம் வசூலிக்கப்படும். பதிவு கவுண்டரில் கேளுங்கள்."}},
+  {"over": true, "k": {"en": ["what to bring", "what should i bring", "bring", "documents", "nric", "passport", "referral letter", "appointment card", "appointment letter"], "zh": ["带什么", "要带", "证件", "身份证", "转介信"], "ms": ["bawa apa", "perlu bawa", "dokumen", "kad pengenalan", "surat rujukan"], "ta": ["என்ன கொண்டு", "ஆவணங்கள்", "அடையாள அட்டை", "பரிந்துரைக் கடிதம்"]}, "a": {"en": "Please bring your NRIC (or passport and work pass), your appointment letter or SMS, the referral letter if this is your first visit, any medical benefit documents such as a Civil Service Card, and the medicines you are taking.", "zh": "请带上身份证（或护照和工作准证）、预约信或短信、第一次就诊的转介信、任何医疗福利证件（例如公务员卡），以及您正在服用的药物。", "ms": "Sila bawa kad pengenalan (atau pasport dan pas kerja), surat atau SMS temujanji, surat rujukan jika ini lawatan pertama, dokumen faedah perubatan seperti Kad Perkhidmatan Awam, dan ubat-ubatan yang sedang anda ambil.", "ta": "உங்கள் அடையாள அட்டை (அல்லது கடப்பிதழ் மற்றும் வேலை அனுமதி), சந்திப்புக் கடிதம் அல்லது குறுஞ்செய்தி, முதல் வருகையானால் பரிந்துரைக் கடிதம், சிவில் சர்வீஸ் அட்டை போன்ற மருத்துவ நலன் ஆவணங்கள், நீங்கள் உட்கொள்ளும் மருந்துகள் ஆகியவற்றைக் கொண்டு வாருங்கள்."}},
+  {"k": {"en": ["subsidised", "subsidized", "subsidy", "private patient", "chas", "cheaper"], "zh": ["津贴", "私人病人", "社保援助"], "ms": ["subsidi", "pesakit swasta", "chas"], "ta": ["மானிய", "தனியார் நோயாளி"]}, "a": {"en": "You are usually a subsidised patient if you were referred by a polyclinic, a CHAS GP, or a public hospital where you were subsidised, and you did not ask for a specific doctor. Otherwise you are a private patient. The Registration counter can check your status.", "zh": "如果您是由综合诊疗所、社保援助计划（CHAS）家庭医生或您享有津贴的公立医院转介，而且没有指定医生，通常就是津贴病人；否则是私人病人。登记柜台可以帮您查询。", "ms": "Anda biasanya pesakit bersubsidi jika dirujuk oleh poliklinik, doktor am CHAS, atau hospital awam di mana anda bersubsidi, dan anda tidak meminta doktor tertentu. Jika tidak, anda pesakit swasta. Kaunter Pendaftaran boleh menyemak status anda.", "ta": "பலதுறை மருந்தகம், CHAS பொது மருத்துவர், அல்லது நீங்கள் மானியம் பெற்ற பொது மருத்துவமனை பரிந்துரைத்து, குறிப்பிட்ட மருத்துவரைக் கேட்காவிட்டால், பொதுவாக நீங்கள் மானிய நோயாளி. இல்லையெனில் தனியார் நோயாளி. பதிவு கவுண்டர் உங்கள் நிலையைச் சரிபார்க்கும்."}},
+  {"k": {"en": ["medical report", "insurance form", "report for insurance", "report"], "zh": ["医疗报告", "保险表格"], "ms": ["laporan perubatan", "borang insurans"], "ta": ["மருத்துவ அறிக்கை", "காப்பீட்டுப் படிவம்"]}, "a": {"en": "You can ask for a medical report at the Payment counter or online. Patients aged 21 and above can apply themselves. It usually takes a few weeks and there is a fee, which cannot be paid with Medisave.", "zh": "您可以在付款柜台或网上申请医疗报告。21岁及以上的病人可以自己申请。通常需要几个星期，并需付费，不能用保健储蓄支付。", "ms": "Anda boleh meminta laporan perubatan di kaunter Pembayaran atau dalam talian. Pesakit berumur 21 tahun ke atas boleh memohon sendiri. Ia biasanya mengambil masa beberapa minggu dan ada bayaran, yang tidak boleh dibayar dengan Medisave.", "ta": "மருத்துவ அறிக்கையைக் கட்டணக் கவுண்டரில் அல்லது இணையத்தில் கேட்கலாம். 21 வயதுக்கு மேற்பட்டவர்கள் தாங்களே விண்ணப்பிக்கலாம். பொதுவாகச் சில வாரங்கள் ஆகும்; கட்டணம் உண்டு, அதை மெடிசேவ் மூலம் செலுத்த முடியாது."}},
+  {"k": {"en": ["medisave", "medishield", "cpf"], "zh": ["保健储蓄", "终身健保"], "ms": ["medisave", "medishield"], "ta": ["மெடிசேவ்", "மெடிஷீல்ட்"]}, "a": {"en": "For outpatient visits, Medisave can only be used for approved treatments and some long-term conditions. The Payment counter will tell you what can be claimed. Other charges are paid by NETS, card, PayNow or cash.", "zh": "门诊费用只有经批准的治疗和部分长期病症可以用保健储蓄支付。付款柜台会告诉您哪些可以申请，其余费用可用 NETS、信用卡、PayNow 或现金支付。", "ms": "Untuk lawatan pesakit luar, Medisave hanya boleh digunakan untuk rawatan yang diluluskan dan sesetengah penyakit jangka panjang. Kaunter Pembayaran akan memberitahu apa yang boleh dituntut. Caj lain dibayar dengan NETS, kad, PayNow atau tunai.", "ta": "வெளிநோயாளி வருகைகளுக்கு, அங்கீகரிக்கப்பட்ட சிகிச்சைகள் மற்றும் சில நீண்டகால நோய்களுக்கு மட்டுமே மெடிசேவ் பயன்படுத்தலாம். எதைக் கோரலாம் என்று கட்டணக் கவுண்டர் சொல்லும். மற்ற கட்டணங்களை NETS, அட்டை, PayNow அல்லது ரொக்கமாகச் செலுத்தலாம்."}},
+  {"k": {"en": ["late", "missed my appointment", "running late", "too early", "came early"], "zh": ["迟到", "错过预约", "来早了"], "ms": ["lewat", "terlepas temujanji", "awal"], "ta": ["தாமதமாக", "சந்திப்பைத் தவற"]}, "a": {"en": "If you are late, please tell the Registration counter. You will be seen as soon as possible, but you may have to wait for the next free slot.", "zh": "如果您迟到了，请告诉登记柜台。我们会尽快安排您看诊，但您可能需要等下一个空档。", "ms": "Jika anda lewat, sila beritahu kaunter Pendaftaran. Anda akan dilihat secepat mungkin, tetapi mungkin perlu menunggu slot kosong seterusnya.", "ta": "தாமதமாக வந்திருந்தால், பதிவு கவுண்டரில் சொல்லுங்கள். கூடிய விரைவில் பார்க்கப்படுவீர்கள், ஆனால் அடுத்த காலியான நேரம் வரை காத்திருக்க வேண்டியிருக்கலாம்."}},
 ];
 
 const pick = (lang, key) => (INTENTS[key][lang] || []).concat(lang === "en" ? [] : INTENTS[key].en);
@@ -165,6 +178,8 @@ export function answer(text, ctx, X) {
   const greet = pick(lang, "hello").find((w) => t.startsWith(` ${w} `) || t.startsWith(` ${w}`) && !/^[\x00-\x7f]+$/.test(w));
   if (greet && t.trim().split(" ").length <= 4 && !has(t, pick(lang, "help")))
     return { reply: X.hello, action: null };
+  if (has(t, pick(lang, "total"))) return { reply: ctx.p ? totalReply(t, ctx, X) : X.noPatient, action: null };
+  if (has(t, pick(lang, "after"))) return { reply: ctx.p ? afterReply(ctx, X) : X.noPatient, action: null };
   if (has(t, pick(lang, "where"))) return { reply: ctx.p ? ctx.say : X.here, action: null };
 
   if (has(t, pick(lang, "help"))) return { reply: ctx.p ? X.calling : X.noPatientHelp, action: ctx.p ? "help" : null };
@@ -176,7 +191,10 @@ export function answer(text, ctx, X) {
   const words = (f) => (f.k[lang] || []).concat(lang === "en" ? [] : f.k.en);
   const faq = FAQ.map((f) => ({ f, n: words(f).filter((k) => has(t, [k])).length })).sort((a, b) => b.n - a.n)[0];
   const hit = faq && faq.n > 0 ? faq.f : null;
-  const medical = has(t, (MEDICAL[lang] || []).concat(lang === "en" ? [] : MEDICAL.en)) && !(hit && hit.over);
+  // questions about taking medicine are always medical - unless it is "where do I collect it" (pharmacy)
+  const drug = has(t, ["medicine", "medication", "painkiller", "pain killer", "dose", "antibiotic", "pill", "ubat", "药",
+                       "止痛", "மருந்து", "நிவாரணி"]) && !(hit && hit.k.en.includes("pharmacy"));
+  const medical = has(t, (MEDICAL[lang] || []).concat(lang === "en" ? [] : MEDICAL.en)) && (drug || !(hit && hit.over));
   const general = ["why", "is there", "do you have", "can i pay", "can my", "为什么", "有没有", "kenapa", "mengapa", "ada tak", "ஏன்", "உள்ளதா"];
   if (hit && !medical && has(t, general)) return { reply: hit.a[lang], action: null };
 
@@ -192,6 +210,38 @@ export function answer(text, ctx, X) {
   if (medical) return { reply: X.medical, action: null };
   if (hit) return { reply: hit.a[lang], action: null };
   return { reply: X.notSure, action: null };
+}
+
+const fill2 = (str, v) => str.replace(/\{(\w+)\}/g, (_, k) => (v[k] ?? ""));
+
+/** "How long in total?" - every step still to do: Model A predicted wait now + usual service time + walking. */
+function totalReply(t, ctx, X) {
+  const e = ctx.est;
+  if (!e || !e.steps.length) return X.nothingLeft;
+  const names = e.steps.map((x) => ctx.place(x.step));
+  let r = fill2(X.total, { n: e.remaining_min, t: e.finish_at, list: names.join(", ") });
+  if (e.upper_min > e.remaining_min + 5) r += " " + fill2(X.upTo, { u: e.upper_min });
+  r += " " + X.whyChange;
+  if (e.before_consult) r += " " + X.mayAdd;
+  if (/hour|time|leave|by |appointment|小时|时间|jam|masa|மணி|நேரம்/.test(t)) r += " " + X.timeLimit;
+  return r;
+}
+
+/** "What's after this?" - the likely next step, with why it may change. */
+function afterReply(ctx, X) {
+  const e = ctx.est;
+  if (!e || !e.steps.length) return X.nothingLeft;
+  const rest = e.current && e.steps[0] && e.steps[0].step === e.current ? e.steps.slice(1) : e.steps;
+  if (!rest.length) return X.lastStep;
+  const nx = rest[0];
+  // steps the rules allow in any order (e.g. pre-consult tests): the order is decided when this one ends
+  const stage = (ctx.stages || []).find((st) => st.includes(nx.step)) || [nx.step];
+  const alts = rest.filter((x) => x.step !== nx.step && stage.includes(x.step)).map((x) => ctx.place(x.step));
+  let r = fill2(e.current ? X.afterCur : X.afterNone, { cur: ctx.place(e.current || ""), next: ctx.place(nx.step), w: nx.wait_min });
+  if (alts.length) r += " " + fill2(X.flexible, { alts: alts.join(", ") });
+  r += " " + X.whyChange;
+  if (e.before_consult && nx.step !== "CONSULT") r += " " + X.mayAdd;
+  return r;
 }
 
 /** Browser speech recognition (Chrome, Edge, Safari). Needs https or localhost. */

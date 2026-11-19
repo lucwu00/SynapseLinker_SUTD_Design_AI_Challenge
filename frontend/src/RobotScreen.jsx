@@ -101,7 +101,8 @@ export default function RobotScreen({ robotId }) {
            p.queue?.predicted_wait_min != null ? fill(t.wait, { n: Math.max(0, Math.round(p.queue.predicted_wait_min - (p.queue.waiting_min || 0))) }) : "")
     : cand ? join(`${t.next}: ${place(next)}.`, fill(t.wait, { n: Math.round(cand.predicted_wait_min) })) : say;
   const canGuide = !!(p && p.status === "AWAITING_GUIDANCE" && next && rec.status === "ROUTE");
-  ctxRef.current = { lang, p, say, waitText, stepsLeft: left, canGuide };
+  ctxRef.current = { lang, p, say, waitText, stepsLeft: left, canGuide, est: j?.estimate, stages: j?.stages,
+                     place: (x) => P[x] || x };
 
   const ask = (text) => {
     const q2 = text.trim();

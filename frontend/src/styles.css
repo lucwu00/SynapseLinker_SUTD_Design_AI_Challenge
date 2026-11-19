@@ -288,3 +288,16 @@ button.big { font-size: 1.3rem; min-height: 3.6rem; border-radius: var(--radius-
 .convo-type { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
 .convo-type input { flex: 1; font-size: 1.1rem; min-height: 3rem; padding: 0 0.75rem; }
 .convo-type button { min-height: 3rem; padding: 0 1.2rem; font-size: 1.1rem; }
+
+/* who is where on the demo track */
+.pt-t { font-size: 11px; font-weight: 700; text-anchor: middle; fill: var(--ink); }
+.pt-t.pt-guided { fill: var(--robot); }
+.pt-t.pt-in_service { fill: var(--high); }
+.pt-list { list-style: none; margin: .4rem 0 0; padding: 0; font-size: .82rem; display: grid; gap: .2rem; }
+.pt-bot { margin-left: .4rem; font-size: .72rem; font-weight: 700; padding: .05rem .4rem; border-radius: 999px; background: var(--wall); }
+.pt-bot.pt-virtual { border: 1px dashed currentColor; background: transparent; }
+.scene-group-t { font-size: .8rem; font-weight: 700; color: var(--muted); margin-right: .2rem; }
+.scenes > button.on { outline: 2px solid var(--robot); }
+.scenes-more { padding-top: 0; }
+.scenes-more > button { font-size: .8rem; opacity: .85; }
+.patients-flow { margin-bottom: 1rem; }

@@ -144,6 +144,10 @@ class RoutePlanner:
                 if node == src and prev == start[1] and mid_segment and nb == heading_from:
                     continue                                    # never drive back into the obstacle
                 c = cost + g[node][nb]["weight"] + TURN_COST_M[turn]
+                # a turn at a T-junction where the tape carries on is found by distance only (single AN wire):
+                # prefer routes that turn at corners, which the robot sees (map: junction_turn_cost_m)
+                if turn in ("LEFT", "RIGHT") and g.degree(node) >= 3 and node != src:
+                    c += self.map.get("junction_turn_cost_m", 0.0)
                 ns = (nb, node)
                 if c < best.get(ns, math.inf):
                     best[ns], parent[ns] = c, st

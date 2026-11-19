@@ -125,8 +125,8 @@ def test_virtual_robot_never_moves(svc):
 
 
 def test_handover_preserves_journey(svc):
-    for n in (1, 5, 6):
-        demo.scene(svc, n)
+    for f in (demo.s1, demo.s5, demo.s6):
+        f(svc)
     s2 = svc.robot_session("EDi-02")
     assert s2["patient_id"] == "ORTHO_001"
     assert s2["journey"]["patient"]["completed_steps"] == ["REGISTRATION", "CONSULT"]
@@ -136,14 +136,14 @@ def test_handover_preserves_journey(svc):
 
 
 def test_all_demo_scenes_run(svc):
-    for n in range(1, 8):
+    for n in range(6, 11):
         assert demo.scene(svc, n)["narration"]
 
 
 def test_scene3_changes_order(svc):
-    demo.scene(svc, 2)
+    demo.scene(svc, 7)
     before = svc._patient("ORTHO_002")["recommendation"]["recommended_sequence"]
-    demo.scene(svc, 3)
+    demo.scene(svc, 8)
     after = svc._patient("ORTHO_002")["recommendation"]["recommended_sequence"]
     assert after != before and after[0] != before[0]          # the congested first test moved later
 
@@ -178,7 +178,7 @@ def _drive(svc, n=600):
 
 
 def test_occupied_room_scan_reguides_to_free_room(svc):
-    demo.scene(svc, 8)
+    demo.s8(svc)
     assert svc._patient("ORTHO_201")["assigned_room"] == "ROOM_B"
     _drive(svc)
     p = svc._patient("ORTHO_201")
@@ -202,7 +202,7 @@ def test_no_free_room_releases_destination(svc):
 
 
 def test_blocked_corridor_reroutes(svc):
-    demo.scene(svc, 9)
+    demo.s9(svc)
     _drive(svc)
     p = svc._patient("ORTHO_201")
     assert p["status"] == "QUEUED" and p["assigned_room"] == "ROOM_C"
@@ -329,9 +329,10 @@ def test_double_loop_blocked_uses_middle_corridor():
     assert d["edge"] == ["START", "C_BR"] and d["mid_segment"]
     rp.block(*d["edge"])
     r = rp.plan_to_node("START", "S1", "XRAY", heading_from=d["heading_from"], mid_segment=True)
-    assert r.nodes == ["START", "C_BL", "S3", "J_L", "J_R", "S1"] and r.start_action == "GO"
-    assert feats(r) == [("C_BL", "R", "RIGHT"), ("S3", "C", "PASS"), ("J_L", "R", "RIGHT"),
-                        ("J_R", "C", "LEFT"), ("S1", "C", "STOP")]
+    # junction_turn_cost_m: the outer loop (corner turns only) beats turning at the two T-junctions
+    assert r.nodes == ["START", "C_BL", "S3", "J_L", "C_TL", "S2", "C_TR", "S1"] and r.start_action == "GO"
+    assert feats(r) == [("C_BL", "R", "RIGHT"), ("S3", "C", "PASS"), ("J_L", "R", "PASS"), ("C_TL", "R", "RIGHT"),
+                        ("S2", "C", "PASS"), ("C_TR", "R", "RIGHT"), ("S1", "C", "STOP")]
     # START has no tape bar: 25 cm to the corner PLUS however far past START the robot was (it adds that)
     assert r.marks[0]["dist_cm"] == -25.0 and r.marks[0]["max_cm"] > 25 + 25
     rp.block("J_L", "J_R")                                              # middle corridor too -> over the top
@@ -377,19 +378,40 @@ def table_svc():
 
 def test_table_scenes_8_and_9(table_svc):
     svc = table_svc
-    demo.scene(svc, 8)
+    demo.s8(svc)
     assert svc._patient("ORTHO_201")["assigned_room"] == "ROOM_C"
     _drive(svc)
     p = svc._patient("ORTHO_201")
     assert p["status"] == "QUEUED" and p["assigned_room"] == "ROOM_B"
     assert svc.robot_heading["EDi-01"] == "C_TR"                      # came round the top-right corner
-    demo.scene(svc, 9)
+    demo.s9(svc)
     _drive(svc)
     p = svc._patient("ORTHO_201")
     assert p["status"] == "QUEUED" and p["assigned_room"] == "ROOM_C"
     assert ("C_BR", "START") in svc.planner.blocked or ("START", "C_BR") in svc.planner.blocked
     types = [e["type"] for e in svc.db.query("SELECT type FROM events")]
     assert "CORRIDOR_BLOCKED" in types and "REROUTED" in types
+
+
+def test_table_demo_story(table_svc):
+    """Scenes 1-5: Mr Tan + Mdm Lee, EDi-01 on the table, EDi-02 virtual."""
+    svc = table_svc
+    st = lambda pid: svc._patient(pid)
+    demo.scene(svc, 1); _drive(svc)
+    assert st("ORTHO_001")["status"] == "QUEUED" and st("ORTHO_001")["assigned_room"] == "ROOM_A"
+    demo.scene(svc, 2)
+    assert st("ORTHO_101")["assigned_room"] == "ROOM_B" and "ROOM_B" in svc.world["people"]
+    demo.scene(svc, 3)
+    assert st("ORTHO_001")["assigned_room"] == "ROOM_B"                 # system thinks X-ray Room 1 is free
+    _drive(svc)
+    assert st("ORTHO_001")["status"] == "QUEUED" and st("ORTHO_001")["assigned_room"] == "ROOM_C"
+    demo.scene(svc, 4); _drive(svc)
+    assert st("ORTHO_101")["status"] == "QUEUED" and st("ORTHO_101")["assigned_room"] == "ROOM_A"
+    assert st("ORTHO_101")["robot_id"] == "EDi-01"
+    demo.scene(svc, 5)
+    assert st("ORTHO_001")["robot_id"] == "EDi-02" and svc.eligible(st("ORTHO_001")) == ["REVIEW"]
+    fm = svc.floor_map()
+    assert {p["patient_id"]: p["room_id"] for p in fm["patients"]}["ORTHO_101"] == "ROOM_A"
 
 
 def test_esp32_radio_off_while_driving():

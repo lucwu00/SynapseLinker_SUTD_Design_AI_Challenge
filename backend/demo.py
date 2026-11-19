@@ -1,4 +1,4 @@
-"""Seven reproducible demo scenes (fictional patients). Each returns a narration for the presenter
+"""Reproducible demo scenes (fictional patients): the 5-scene story first, then the extra scenes. Each returns a narration for the presenter
 that says which parts are ML, which are rules and which are simulated."""
 from __future__ import annotations
 import json
@@ -28,7 +28,153 @@ def _rec(svc, pid):
 
 
 def scene(svc: SynapseService, n: int) -> dict:
-    return {1: s1, 2: s2, 3: s3, 4: s4, 5: s5, 6: s6, 7: s7, 8: s8, 9: s9}[n](svc)
+    """Scenes 1-5: the demo story (two patients, two robots). Scenes 6-10: the extra scenes."""
+    story = {1: d1, 2: d2, 3: d3, 4: d4, 5: d5}
+    extra = {6: s1, 7: s2, 8: s3, 9: s4, 10: s9}     # s5-s8 are covered by the story (still used by the tests)
+    out = (story.get(n) or extra[n])(svc)
+    out["scene"] = n
+    return out
+
+
+# ============================================================================ the demo story
+# Mr Tan (A): new fracture referral -> consultation -> the doctor orders an X-ray -> X-ray -> doctor review.
+# Mdm Lee (B): pre-op, needs an X-ray before her consultation -> X-ray -> consultation.
+# EDi-01 is the physical OjanBot on the table; EDi-02 is the virtual assistant (second screen, voice).
+A, B = "ORTHO_001", "ORTHO_101"
+PATIENT_B = dict(patient_id=B, display_name="Mdm Lee (fictional)", visit_type="pre_op", referral_category="Knee/Hip",
+                 age=67, doctor_id="DR02", pre_consult_tests=["XRAY"])
+
+
+def _room_label(svc, room):
+    r = svc.planner.map["rooms"].get(room or "", {})
+    return r.get("label") or r.get("station_label") or room or "-"
+
+
+def _status(svc, pid):
+    return svc._patient(pid)["status"] if _exists(svc, pid) else None
+
+
+def _need(svc, pid, statuses, msg):
+    if _status(svc, pid) not in statuses:
+        raise ServiceError(msg, 409)
+
+
+def _xray_room_1(svc):
+    rooms = [k for k, v in svc.planner.map["rooms"].items() if v.get("station") == "XRAY"]
+    for k in rooms:
+        if "1" in (svc.planner.map["rooms"][k].get("label") or ""):
+            return k
+    return rooms[0] if rooms else None
+
+
+def d1(svc):
+    """Mr Tan checks in; EDi-01 takes him to Consultation Room 1."""
+    svc.reset()
+    svc.check_in({**PATIENTS[A], "appointment_time": svc.clock.to_dict()["clinic_time"], "robot_id": "EDi-01"})
+    p = svc._patient(A); r = p["recommendation"] or {}
+    wait = next((c.get("predicted_wait_min") for c in r.get("candidates", [])), None)
+    table = ("ON THE TABLE: EDi-01 on START (middle of the bottom line) facing left; all rooms empty. "
+             if _physical(svc) else "")
+    return dict(title="Patient A checks in",
+                narration=[table + "Mr Tan (queue 1001, new fracture referral, walking aid) checks in. EDi-01 is assigned to him.",
+                           f"RULES: a new referral sees the doctor first; next eligible service = {svc.eligible(p)}.",
+                           f"ML: predicted consultation wait {wait} min (Model A).",
+                           f"AUTONOMOUS: EDi-01 guides him to {_room_label(svc, p.get('assigned_room'))}: straight, right at the "
+                           "corner, stop on the bar, turn to scan the room (free), turn back.",
+                           "When EDi-01 shows ARRIVED, go to scene 2."])
+
+
+def d2(svc):
+    """Mr Tan goes in to the doctor; Mdm Lee checks in and needs an X-ray first (EDi-02 shows her the way)."""
+    if not _exists(svc, A):
+        raise ServiceError("Run scene 1 first", 409)
+    _need(svc, A, ("QUEUED", "IN_SERVICE"), "Wait until EDi-01 has brought Mr Tan to the consultation room (ARRIVED)")
+    if _status(svc, A) == "QUEUED":
+        svc.start_service(A)                                 # Mr Tan is now with the doctor
+    room = _xray_room_1(svc)
+    if not _exists(svc, B):
+        svc.check_in({**PATIENT_B, "appointment_time": svc.clock.to_dict()["clinic_time"], "robot_id": "EDi-02"})
+        rec = _rec(svc, B)
+        svc.confirm_destination(B, "XRAY", source="staff")
+        svc.db.update("patients", "patient_id", B, assigned_room=room)
+        svc.arrive_at_station(B)                             # she is in the room; her X-ray is not started in the system yet
+        svc.update_room(room, person_present=True)
+    lbl = _room_label(svc, room)
+    table = f"ON THE TABLE: put the white block in {lbl} - that is Mdm Lee. Leave EDi-01 where it is. " if _physical(svc) else ""
+    return dict(title="Patient B checks in, X-ray first",
+                narration=["Mr Tan is now with the doctor in Consultation Room 1.",
+                           "Mdm Lee (queue 1002, pre-op knee) checks in. RULES: her pre-op test must be done before she "
+                           "sees the doctor. Blood test and ECG are not on this table, so her test today is an X-ray.",
+                           f"EDi-01 is busy with Mr Tan, so EDi-02 (virtual assistant, second screen) shows her the way to {lbl}.",
+                           table + f"She is waiting inside {lbl}, but staff have not started her X-ray in the system yet, "
+                                   "so the system still lists the room as FREE. Go to scene 3."])
+
+
+def d3(svc):
+    """Mr Tan's consultation ends with an X-ray order; EDi-01 finds X-ray Room 1 occupied and re-guides him."""
+    _need(svc, A, ("IN_SERVICE", "QUEUED"), "Run scenes 1 and 2 first")
+    p = svc._patient(A)
+    if p["assigned_destination"] != "CONSULT":
+        raise ServiceError("Mr Tan is not in the consultation any more - press Reset demo and start from scene 1", 409)
+    svc.complete_service(A, "CONSULT", added_steps=["XRAY", "REVIEW"], recorded_by="Doctor")
+    if _status(svc, A) == "AWAITING_GUIDANCE":             # auto-dispatch did not run (e.g. robot not ready)
+        svc.confirm_destination(A, "XRAY", robot_id="EDi-01", source="staff")
+    p = svc._patient(A)
+    first = _room_label(svc, p.get("assigned_room"))
+    return dict(title="A to X-ray: room occupied, re-guide",
+                narration=["The doctor finishes Mr Tan's consultation and orders an X-ray, then a doctor review "
+                           "(clinician order). Consultation Room 1 is free again.",
+                           f"RULES + ML: next service X-ray. EDi-01 takes him to the nearest X-ray room the system believes "
+                           f"is free: {first}.",
+                           "WATCH: on arrival EDi-01 turns to scan the room, finds Mdm Lee there (OCCUPIED), updates the room "
+                           "status and re-guides Mr Tan round the top-right corner to the other X-ray room.",
+                           "Nobody told the system the room was taken: the robot sensed it. When EDi-01 shows ARRIVED at "
+                           "X-ray Room 2, go to scene 4."])
+
+
+def d4(svc):
+    """Mdm Lee's X-ray is done; EDi-01 takes over and brings her to Consultation Room 1."""
+    _need(svc, A, ("QUEUED", "IN_SERVICE"), "Wait until EDi-01 has brought Mr Tan to X-ray Room 2 (ARRIVED)")
+    if _status(svc, A) == "QUEUED":
+        svc.start_service(A)                                 # Mr Tan's X-ray starts in X-ray Room 2
+    _need(svc, B, ("QUEUED", "IN_SERVICE"), "Mdm Lee is not at the X-ray - run scene 2 first")
+    room = svc._patient(B).get("assigned_room") or _xray_room_1(svc)
+    svc.complete_service(B, "XRAY")
+    svc.update_room(room, person_present=False)
+    svc.assign_robot("EDi-01", B, force=True)
+    if _status(svc, B) == "AWAITING_GUIDANCE":
+        svc.confirm_destination(B, "CONSULT", robot_id="EDi-01", source="staff")
+    p = svc._patient(B)
+    table = (f"ON THE TABLE: take the white block out of {_room_label(svc, room)}; Consultation Room 1 stays empty. "
+             if _physical(svc) else "")
+    return dict(title="B to consultation (EDi-01)",
+                narration=[table + "Mr Tan's X-ray has started in X-ray Room 2.",
+                           "Mdm Lee's X-ray is done. RULES: her test is complete, so she may now see the doctor.",
+                           f"HANDOVER: EDi-01 takes over her journey (it was EDi-02's) and guides her to "
+                           f"{_room_label(svc, p.get('assigned_room'))}. It chooses the route along the outside corners, "
+                           "which it can follow reliably, and scans the room on arrival (free).",
+                           "Go to scene 5 while it drives."])
+
+
+def d5(svc):
+    """Mr Tan's X-ray is done; EDi-02 takes over and answers him by voice."""
+    _need(svc, A, ("QUEUED", "IN_SERVICE"), "Mr Tan is not at the X-ray - run scenes 1 to 4 first")
+    if svc._patient(A)["assigned_destination"] != "XRAY":
+        raise ServiceError("Mr Tan is not at the X-ray - run scenes 1 to 4 first", 409)
+    svc.complete_service(A, "XRAY")
+    svc.assign_robot("EDi-02", A, force=True)
+    p = svc._patient(A); r = p["recommendation"] or {}
+    est = svc.journey(A).get("estimate") or {}
+    return dict(title="A after X-ray: EDi-02 voice",
+                narration=["Mr Tan's X-ray is done. EDi-01 is busy with Mdm Lee, so EDi-02 (virtual assistant) takes over "
+                           "his journey: it already knows everything he has done today.",
+                           f"Next for him: {', '.join(svc.eligible(p)) or '-'} (doctor review of the X-ray). "
+                           f"Estimated time left: about {est.get('remaining_min', '?')} min, if the queues stay as they are.",
+                           "OPEN the EDi-02 screen (localhost:8000/#/robot/EDi-02), tap Ask me, and ask for example: "
+                           "'What is my next step?', 'How long will the rest of my visit take?', 'Where is the toilet?', "
+                           "or switch to 华文 and ask '我下一步去哪里？'. Open Conversation to show the transcript.",
+                           "End of the story. Scenes 6-10 are extra scenes (press Reset demo first)."])
+
 
 
 def s1(svc):

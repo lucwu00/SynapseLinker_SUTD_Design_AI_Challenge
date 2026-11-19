@@ -182,5 +182,6 @@
       },
       "note": "Box on the bottom line, between START and the bottom-right corner."
     }
-  }
+  },
+  "junction_turn_cost_m": 0.35
 }

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useState } from "react";
 import { api, useLive, LABEL, VISIT, SUBSPECIALTY, maskName, connectText } from "./api";
 import FloorMap from "./FloorMap";
 
@@ -47,13 +47,8 @@ function MiniJourney({ p }) {
   );
 }
 
-function PatientDetail({ p, robots, act }) {
+function PatientDetail({ p }) {
   const rec = p.recommendation || {};
-  const [added, setAdded] = useState([]);
-  const step = p.assigned_destination;
-  useEffect(() => setAdded([]), [p.patient_id, step]);   // orders belong to one consult only
-  const pid = p.patient_id;
-  const tog = (x) => setAdded((a) => (a.includes(x) ? a.filter((y) => y !== x) : [...a, x]));
   return (
     <div className="o-detail">
       <div>
@@ -78,37 +73,10 @@ function PatientDetail({ p, robots, act }) {
         <ul className="o-rules">{rec.rule_checks?.map((r, i) => <li key={i}>{r}</li>)}</ul>
       </div>
       <div className="o-actions">
-        <p className="o-detail-h">Staff actions</p>
-        {p.status === "AWAITING_GUIDANCE" && rec.recommended_station && (
-          <button className="o-btn o-btn-primary" onClick={() => act(`/patients/${pid}/destination`, { step: rec.recommended_station })}>Send to {LABEL[rec.recommended_station]}</button>
-        )}
-        {p.status === "GUIDED" && <button className="o-btn" onClick={() => act(`/patients/${pid}/arrived`)}>Mark arrived</button>}
-        {p.status === "QUEUED" && <button className="o-btn o-btn-primary" onClick={() => act(`/patients/${pid}/service-started`)}>Start service</button>}
-        {p.status === "IN_SERVICE" && (
-          <>
-            {(step === "CONSULT" || step === "REVIEW") && (
-              <div className="o-orders">
-                {["XRAY", "REVIEW", "CAST_ROOM", "DRESSING", "PROCEDURE", "PHARMACY"].map((x) => (
-                  <label key={x}><input type="checkbox" checked={added.includes(x)} onChange={() => tog(x)} /> {LABEL[x]}</label>
-                ))}
-              </div>
-            )}
-            <button className="o-btn o-btn-primary" onClick={() => act(`/patients/${pid}/service-completed`, { step, added_steps: (step === "CONSULT" || step === "REVIEW") ? added : [], recorded_by: "Duty staff" })}>
-              Complete {LABEL[step]}{(step === "CONSULT" || step === "REVIEW") && added.length > 0 && ` + ${added.length} order${added.length > 1 ? "s" : ""}`}
-            </button>
-          </>
-        )}
-        {p.status !== "COMPLETED" && (
-          <button className="o-btn" onClick={() => act(`/patients/${pid}/escalate`, p.escalated ? { reason: "Resolved by staff", active: false } : { reason: "Flagged by staff", active: true })}>
-            {p.escalated ? "Resolve staff flag" : "Flag for staff"}
-          </button>
-        )}
-        {p.status !== "COMPLETED" && (
-          <select className="o-select" value={p.robot_id || ""} onChange={(e) => e.target.value && act(`/robots/${e.target.value}/assign`, { patient_id: pid, force: true })}>
-            <option value="">Assign robot</option>
-            {robots.map((r) => <option key={r.robot_id} value={r.robot_id}>{r.robot_id}</option>)}
-          </select>
-        )}
+        <p className="o-detail-h">Journey</p>
+        <MiniJourney p={p} />
+        <p className="o-small">{p.required_steps.map((x) => LABEL[x]).join(" → ")}</p>
+        <p className="o-small o-dim">Robot: {p.robot_id || "none"}. Steps are added or removed by staff on the staff console.</p>
         {p.escalation_reason && <p className="o-small o-crit-t">{p.escalation_reason}</p>}
       </div>
     </div>
@@ -116,12 +84,8 @@ function PatientDetail({ p, robots, act }) {
 }
 
 export default function OpsBoard() {
-  const [s, error, refresh] = useLive("/dashboard/state");
+  const [s, error] = useLive("/dashboard/state");
   const [open, setOpen] = useState(null);
-  const [msg, setMsg] = useState(null);
-  const act = async (path, body) => {
-    try { await api(path, "POST", body || {}); setMsg(null); refresh(); } catch (e) { setMsg(e.message); }
-  };
   if (!s) return <div className="ops ops-loading">{connectText(error)}</div>;
 
   const active = s.patients.filter((p) => p.status !== "COMPLETED");
@@ -132,6 +96,9 @@ export default function OpsBoard() {
   const openAlerts = s.alerts.filter((a) => !a.acknowledged_by);
   const busyRobots = s.robots.filter((r) => ["NAVIGATING", "BLOCKED"].includes(r.status?.state)).length;
   const qOf = (pid) => s.patients.find((p) => p.patient_id === pid)?.queue_no;
+  // display only: follow the patient who changed last, unless someone picked a row
+  const latest = [...active].sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0))[0];
+  const shown = open && s.patients.some((p) => p.patient_id === open) ? open : latest?.patient_id;
 
   return (
     <div className="ops">
@@ -154,7 +121,6 @@ export default function OpsBoard() {
           <span className={`o-live ${error ? "o-live-off" : ""}`}>{error ? "Offline" : "Live"}</span>
         </div>
       </header>
-      {msg && <div className="o-error" role="alert">{msg} <button className="o-btn" onClick={() => setMsg(null)}>Dismiss</button></div>}
 
       <div className="o-grid">
         <div className="o-main">
@@ -213,9 +179,9 @@ export default function OpsBoard() {
                       ? `${short(p.current_station === "REGISTRATION" ? nxt : p.current_station)}, ${p.room.classroom_label}` : short(p.current_station);
                     return (
                       <Fragment key={p.patient_id}>
-                        <tr className={`${open === p.patient_id ? "o-open" : ""} ${p.status === "COMPLETED" ? "o-row-off" : ""}`}
-                            onClick={() => setOpen(open === p.patient_id ? null : p.patient_id)} tabIndex={0}
-                            onKeyDown={(e) => e.key === "Enter" && setOpen(open === p.patient_id ? null : p.patient_id)}>
+                        <tr className={`${shown === p.patient_id ? "o-open" : ""} ${p.status === "COMPLETED" ? "o-row-off" : ""}`}
+                            onClick={() => setOpen(p.patient_id)} tabIndex={0}
+                            onKeyDown={(e) => e.key === "Enter" && setOpen(p.patient_id)}>
                           <td className="o-strong o-num">{p.queue_no}</td>
                           <td>{maskName(p.display_name)}{p.clinician_priority === "expedited" && <span className="o-tag">Exp</span>}{p.mobility !== "independent" && <span className="o-tag" title={p.mobility}>{p.mobility === "wheelchair" ? "WC" : "Aid"}</span>}</td>
                           <td className="o-dim">{VISIT[p.visit_type]}, {SUBSPECIALTY[p.referral_category]}</td>
@@ -227,8 +193,8 @@ export default function OpsBoard() {
                           <td>{p.robot_id || <span className="o-dim">–</span>}</td>
                           <td><MiniJourney p={p} /></td>
                         </tr>
-                        {open === p.patient_id && (
-                          <tr className="o-detail-row"><td colSpan={10}><PatientDetail p={p} robots={s.robots} act={act} /></td></tr>
+                        {shown === p.patient_id && (
+                          <tr className="o-detail-row"><td colSpan={10}><PatientDetail p={p} /></td></tr>
                         )}
                       </Fragment>
                     );
@@ -236,7 +202,7 @@ export default function OpsBoard() {
                 </tbody>
               </table>
             )}
-            <p className="o-foot">Queued: waited / predicted at arrival. Click a row for the routing decision and staff actions. Names masked; patients are called by queue number.</p>
+            <p className="o-foot">Queued: waited / predicted at arrival. The routing decision of the patient who moved last is shown; click a row to see another. Names masked; patients are called by queue number.</p>
           </section>
         </div>
 
@@ -254,7 +220,7 @@ export default function OpsBoard() {
                     </div>
                     <p className="o-alert-m">{a.message}</p>
                     {a.acknowledged_by ? <span className="o-dim o-small">Acknowledged by {a.acknowledged_by} {a.acknowledged_at}</span>
-                      : <button className="o-btn o-btn-sm" onClick={() => act(`/alerts/${a.id}/ack`, { by: "Duty staff" })}>Acknowledge</button>}
+                      : <span className="o-small o-warn-t">Waiting for staff</span>}
                   </li>
                 ))}
               </ol>

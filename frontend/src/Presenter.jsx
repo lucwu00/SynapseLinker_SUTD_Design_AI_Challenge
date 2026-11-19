@@ -57,6 +57,41 @@ function StationCard({ s, act }) {
   );
 }
 
+const PRE_TESTS = ["XRAY", "PHLEBOTOMY", "ECG"];
+const POST_ORDERS = ["XRAY", "REVIEW", "CAST_ROOM", "DRESSING", "PROCEDURE", "PHARMACY"];
+
+/** Staff add or remove steps that are not done yet. The backend checks the workflow rules. */
+function OrdersEditor({ p, act }) {
+  const left = [...p.completed_steps];
+  const pending = [];
+  p.required_steps.forEach((x) => { const i = left.indexOf(x); if (i >= 0) left.splice(i, 1); else pending.push(x); });
+  const consulted = p.completed_steps.includes("CONSULT");
+  const busy = ["GUIDED", "QUEUED", "IN_SERVICE"].includes(p.status) ? p.assigned_destination : null;
+  const addable = (consulted ? POST_ORDERS : PRE_TESTS).filter((x) => !pending.includes(x));
+  const url = `/patients/${p.patient_id}/orders`;
+  return (
+    <div className="orders-edit">
+      <span className="small muted">Steps to do:</span>
+      {pending.map((x, i) => {
+        const fixed = ["REGISTRATION", "CONSULT", "PAYMENT"].includes(x) || (x === busy && pending.indexOf(x) === i);
+        return (
+          <span key={i} className={`chip ${x === busy ? "chip-now" : ""}`}>
+            {LABEL[x]}
+            {!fixed && <button className="chip-x" aria-label={`Remove ${LABEL[x]}`} title="Remove this step"
+                               onClick={() => act(url, { remove: [x], recorded_by: "Clinician" })}>×</button>}
+          </span>
+        );
+      })}
+      {addable.length > 0 && (
+        <select aria-label="Add a step" value="" onChange={(e) => e.target.value && act(url, { add: [e.target.value], recorded_by: "Clinician" })}>
+          <option value="">+ Add step…</option>
+          {addable.map((x) => <option key={x} value={x}>{LABEL[x]}</option>)}
+        </select>
+      )}
+    </div>
+  );
+}
+
 function PatientRow({ p, robots, act }) {
   const rec = p.recommendation || {};
   const [added, setAdded] = useState([]);
@@ -127,6 +162,7 @@ function PatientRow({ p, robots, act }) {
         </p>
       )}
 
+      {p.status !== "COMPLETED" && <OrdersEditor p={p} act={act} />}
       <div className="row">
         {p.status === "AWAITING_GUIDANCE" && rec.recommended_station && (
           <button className="primary" onClick={() => act(`/patients/${pid}/destination`, { step: rec.recommended_station })}>
@@ -310,6 +346,20 @@ export default function Presenter() {
             </section>
           </main>
           <aside>
+            <section>
+              <h2>Alerts</h2>
+              {s.alerts.filter((a) => !a.acknowledged_by).length === 0 ? <p className="small muted">No open alerts.</p> : (
+                <ol className="alert-list">
+                  {s.alerts.filter((a) => !a.acknowledged_by).map((a) => (
+                    <li key={a.id} className={`alert-item alert-${a.severity}`}>
+                      <span className="small muted">{a.clinic_time}</span> <strong>{a.title}</strong>
+                      <p className="small">{a.message}</p>
+                      <button onClick={() => act(`/alerts/${a.id}/ack`, { by: "Duty staff" })}>Acknowledge</button>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
             <section><h2>Robots</h2>{s.robots.map((r) => <RobotCard key={r.robot_id} r={r} act={act} />)}
               <p className="small muted">{s.map.warning ? "Using the fictional example map." : `Map: ${s.map.path}`}</p>
             </section>

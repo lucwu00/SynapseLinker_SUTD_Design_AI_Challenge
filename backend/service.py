@@ -38,6 +38,10 @@ CONFIG = json.loads((ROOT / "config" / "backend_config.json").read_text(encoding
 if os.environ.get("SYNAPSE_ROBOT_ADAPTER") in ("esp32", "simulation"):
     CONFIG["robots"]["EDi-01"]["adapter"] = os.environ["SYNAPSE_ROBOT_ADAPTER"]
 POST_CONSULT = {"XRAY", "REVIEW", "CAST_ROOM", "DRESSING", "PROCEDURE", "PHARMACY"}
+POST_ORDER = ["XRAY", "REVIEW", "CAST_ROOM", "DRESSING", "PROCEDURE", "PHARMACY"]   # phase order R07-R12
+PRE_CONSULT = ["XRAY", "PHLEBOTOMY", "ECG"]
+FIXED_STEPS = {"REGISTRATION", "CONSULT", "PAYMENT"}
+LABEL_TXT = {"REGISTRATION": "Registration", "CONSULT": "Consultation", "PAYMENT": "Payment"}
 ACTIVE_PATIENT = ("AWAITING_GUIDANCE", "GUIDED", "QUEUED", "IN_SERVICE", "ESCALATED")
 
 
@@ -539,7 +543,7 @@ class SynapseService:
                 bad = [s for s in added_steps if s not in POST_CONSULT]
                 if bad:
                     raise ServiceError(f"Cannot add {bad}; allowed: {sorted(POST_CONSULT)}", 422)
-                clinical = [s for s in added_steps if s != "PHARMACY"]
+                clinical = sorted((s for s in added_steps if s != "PHARMACY"), key=POST_ORDER.index)
                 pay = req.index("PAYMENT")
                 req = req[:pay] + clinical + req[pay:]
                 if "PHARMACY" in added_steps and "PHARMACY" not in req:
@@ -573,6 +577,67 @@ class SynapseService:
                     self.db.update("patients", "patient_id", pid, robot_id=None)
                 self._event("JOURNEY_COMPLETED", "system", f"{pid} journey complete", patient_id=pid)
             self.refresh("service_complete")
+            return self.journey(pid)
+
+    def change_orders(self, pid: str, add: list[str] | None = None, remove: list[str] | None = None,
+                      recorded_by: str = "Clinician") -> dict:
+        """Staff add or cancel steps that are not done yet. Before the consult: pre-consult tests;
+        after it: post-consult orders. Registration, consult and payment cannot be removed, nor the
+        step the patient is being guided to or served at. The workflow rules still apply."""
+        with self.lock:
+            p = self._patient(pid)
+            if p["status"] == "COMPLETED":
+                raise ServiceError(f"{pid} has finished the visit", 409)
+            req, done = list(p["required_steps"]), list(p["completed_steps"])
+            busy = p["assigned_destination"] if p["status"] in ("GUIDED", "QUEUED", "IN_SERVICE") else None
+            consulted = "CONSULT" in done
+            for step in remove or []:
+                if step in FIXED_STEPS:
+                    raise ServiceError(f"{LABEL_TXT.get(step, step)} cannot be removed", 422)
+                if req.count(step) <= done.count(step):
+                    raise ServiceError(f"{step} is not a pending step", 409)
+                if step == busy and req.count(step) - done.count(step) == 1:
+                    raise ServiceError(f"{pid} is already going to {step}", 409)
+                i = len(req) - 1 - req[::-1].index(step)          # the last (pending) occurrence
+                req.pop(i)
+                if step == "XRAY" and "REVIEW" in req[i:] and consulted and req.count("XRAY") <= done.count("XRAY"):
+                    req.remove("REVIEW")                          # no post-consult X-ray left to review (R07)
+            for step in add or []:
+                if not consulted:
+                    if step not in PRE_CONSULT:
+                        raise ServiceError(f"Before the consult only {PRE_CONSULT} can be added", 422)
+                    if step in req[:req.index("CONSULT")]:
+                        continue
+                    req.insert(req.index("CONSULT"), step)
+                else:
+                    if step not in POST_CONSULT:
+                        raise ServiceError(f"After the consult only {POST_ORDER} can be added", 422)
+                    pend = req[len(req) - 1 - req[::-1].index("CONSULT") + 1:]
+                    if step in pend and req.count(step) > done.count(step):
+                        continue
+                    if step == "PHARMACY":
+                        req.append(step)
+                    else:                                         # keep the phase order before PAYMENT
+                        pay = req.index("PAYMENT")
+                        j = pay
+                        while j > 0 and req[j - 1] in POST_ORDER[:-1] and \
+                                POST_ORDER.index(req[j - 1]) > POST_ORDER.index(step) and j - 1 >= len(done):
+                            j -= 1
+                        req.insert(j, step)
+            try:
+                self.rules.build_stages(req, p["visit_type"])
+            except ValueError as e:
+                raise ServiceError(f"That change breaks the workflow rules: {e}", 422)
+            if req == p["required_steps"]:
+                return self.journey(pid)
+            upd = dict(required_steps=req, updated_at=time.time())
+            if p["status"] == "AWAITING_GUIDANCE":
+                upd["recommendation"] = None
+            self.db.update("patients", "patient_id", pid, **upd)
+            parts = ([f"added {add}"] if add else []) + ([f"removed {remove}"] if remove else [])
+            self._event("ORDERS_CHANGED", "staff", f"{pid}: {recorded_by} {' and '.join(parts)}; journey now "
+                        f"{' -> '.join(req)}", patient_id=pid)
+            self.refresh("orders_changed")
             return self.journey(pid)
 
     def escalate(self, pid: str, reason: str, active: bool = True) -> dict:
@@ -1072,7 +1137,7 @@ class SynapseService:
                                                           "clinician_priority", "mobility", "age", "doctor_id", "status",
                                                           "current_station", "assigned_destination", "robot_id",
                                                           "escalated", "escalation_reason", "required_steps",
-                                                          "completed_steps", "recommendation")},
+                                                          "completed_steps", "recommendation", "updated_at")},
                                      eligible_now=j["eligible_now"], queue=j["queue"], patients_ahead=j["patients_ahead"],
                                      room=j["room"],
                                      minutes_in_clinic=round(now - p["checked_in_min"], 1)))

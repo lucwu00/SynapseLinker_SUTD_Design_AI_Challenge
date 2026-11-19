@@ -406,3 +406,44 @@ def test_esp32_radio_off_while_driving():
     a2.status.last_seen -= 61                                    # never came back: fail the task
     a2.tick(1)
     assert a2.tasks["T2"].state == NavState.FAILED
+
+
+def _serve(svc, pid):
+    """Guide, arrive, start and complete whatever is recommended next; returns the step."""
+    p = svc._patient(pid)
+    step = p["assigned_destination"] or p["recommendation"]["recommended_station"]
+    if p["status"] == "AWAITING_GUIDANCE":
+        svc.confirm_destination(pid, step, source="staff")
+    if svc._patient(pid)["status"] == "GUIDED":
+        svc.arrive_at_station(pid)
+    if svc._patient(pid)["status"] == "QUEUED":
+        svc.start_service(pid)
+    return step
+
+
+def test_staff_change_orders(svc):
+    svc.auto_dispatch = False
+    svc.check_in(dict(patient_id="N1", visit_type="new", referral_category="Fracture", age=50, doctor_id="DR01"))
+    # before the consult: pre-consult tests can be added and removed
+    svc.change_orders("N1", add=["XRAY", "ECG"])
+    assert svc._patient("N1")["required_steps"][:4] == ["REGISTRATION", "XRAY", "ECG", "CONSULT"]
+    svc.change_orders("N1", remove=["ECG"])
+    with pytest.raises(ServiceError):
+        svc.change_orders("N1", add=["CAST_ROOM"])            # treatment only after the consult
+    with pytest.raises(ServiceError):
+        svc.change_orders("N1", remove=["CONSULT"])
+    while "CONSULT" not in svc._patient("N1")["completed_steps"]:
+        step = _serve(svc, "N1")
+        svc.complete_service("N1", step,
+                             added_steps=["PROCEDURE", "REVIEW", "XRAY", "CAST_ROOM"] if step == "CONSULT" else None)
+    req = svc._patient("N1")["required_steps"]
+    i = req.index("CONSULT")
+    assert req[i + 1:] == ["XRAY", "REVIEW", "CAST_ROOM", "PROCEDURE", "PAYMENT"]     # clicked order sorted
+    svc.change_orders("N1", remove=["PROCEDURE"], add=["DRESSING", "PHARMACY"])
+    assert svc._patient("N1")["required_steps"][i + 1:] == ["XRAY", "REVIEW", "CAST_ROOM", "DRESSING", "PAYMENT", "PHARMACY"]
+    svc.change_orders("N1", remove=["XRAY"])                 # the doctor review of it goes too (R07)
+    assert svc._patient("N1")["required_steps"][i + 1:] == ["CAST_ROOM", "DRESSING", "PAYMENT", "PHARMACY"]
+    step = _serve(svc, "N1")                                   # now being served at the cast room
+    with pytest.raises(ServiceError):
+        svc.change_orders("N1", remove=[step])
+    assert svc._patient("N1")["recommendation"] is not None

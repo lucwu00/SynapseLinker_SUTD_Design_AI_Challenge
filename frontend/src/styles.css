@@ -253,3 +253,15 @@ button.big { font-size: 1.3rem; min-height: 3.6rem; border-radius: var(--radius-
 .mark { stroke: var(--ink); stroke-width: 6; stroke-linecap: butt; }
 .zone { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 3; }
 .zone-on { fill: #a35a00; stroke: #a35a00; fill-opacity: .85; }
+
+/* staff console: add / remove journey steps */
+.orders-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0.5rem 0; }
+.chip { display: inline-flex; align-items: center; gap: 0.25rem; border: 1px solid var(--line); border-radius: 999px;
+        padding: 0.1rem 0.6rem; font-size: 0.85rem; background: #fff; }
+.chip-now { border-color: currentColor; font-weight: 600; }
+.chip-x { border: 0; background: none; padding: 0 0.15rem; font-size: 1rem; line-height: 1; cursor: pointer; color: inherit; }
+.chip-x:hover, .chip-x:focus-visible { color: #b42318; }
+.alert-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.5rem; }
+.alert-item { border-left: 3px solid #b7791f; padding: 0.3rem 0.6rem; background: #fff; }
+.alert-item.alert-critical { border-left-color: #b42318; }
+.alert-item p { margin: 0.2rem 0; }

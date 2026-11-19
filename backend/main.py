@@ -97,6 +97,11 @@ def service_completed(patient_id: str, req: S.ServiceCompletedRequest):
     return svc.complete_service(patient_id, req.step, req.added_steps, req.recorded_by)
 
 
+@app.post("/patients/{patient_id}/orders")
+def change_orders(patient_id: str, req: S.OrdersRequest):
+    return svc.change_orders(patient_id, req.add, req.remove, req.recorded_by)
+
+
 @app.post("/patients/{patient_id}/escalate")
 def escalate(patient_id: str, req: S.EscalateRequest):
     return svc.escalate(patient_id, req.reason, req.active)

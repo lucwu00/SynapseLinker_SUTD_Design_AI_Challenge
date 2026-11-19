@@ -43,6 +43,12 @@ class ServiceCompletedRequest(BaseModel):
     recorded_by: str = Field("staff", max_length=40)
 
 
+class OrdersRequest(BaseModel):
+    add: list[Step] = []
+    remove: list[Step] = []
+    recorded_by: str = Field("Clinician", max_length=40)
+
+
 class EscalateRequest(BaseModel):
     reason: str = Field(max_length=200)
     active: bool = True

@@ -71,7 +71,7 @@ export default function RobotScreen({ robotId }) {
 
   const join = (a, b) => [a, b].filter(Boolean).join(lang === "zh" ? "" : " ");
   let headline, line;
-  if (!p) { headline = t.hello; line = virtual ? t.enterNo : t.waitingPatient; }
+  if (!p) { headline = t.hello; line = t.enterNo; }
   else if (p.status === "COMPLETED") { headline = t.done; line = t.doneLine; }
   else if (p.status === "ESCALATED") { headline = t.staff; line = t.staffLine; }
   else if (nav === "EMERGENCY_STOP") { headline = t.stopped; line = t.stoppedLine; }
@@ -166,7 +166,7 @@ export default function RobotScreen({ robotId }) {
         <p className="why">{t.anyOrder} {rec.recommended_sequence.map((x) => P[x]).join(", ")}.</p>
       )}
 
-      {virtual && s.directions?.length > 0 && p && !["COMPLETED", "QUEUED", "IN_SERVICE"].includes(p.status) && (
+      {s.directions?.length > 0 && p && !["COMPLETED", "QUEUED", "IN_SERVICE"].includes(p.status) && (
         <ol className="directions" aria-label="Directions">
           {s.directions.map((d, i) => <li key={i}>{TR[d.action]}{d.action !== "STOP" && d.at_marker ? ` (${TR.at} ${d.at_marker})` : ""}</li>)}
         </ol>
@@ -191,7 +191,7 @@ export default function RobotScreen({ robotId }) {
         )}
       </div>
 
-      {virtual && (
+      {(
         <form className="lookup" onSubmit={findByQueue}>
           <label>{t.queue}<input inputMode="numeric" value={q} onChange={(e) => setQ(e.target.value)} placeholder="1001" /></label>
           <button className="big" type="submit">{t.find}</button>

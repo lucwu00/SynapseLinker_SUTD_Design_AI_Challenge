@@ -71,7 +71,7 @@ export default function Replay() {
           <>
             <div className="impact">
               <div><strong>{Math.abs(pre.diff_min).toFixed(0)} min</strong><span>faster per pre-op visit (95% CI {Math.abs(pre.ci95[1])}–{Math.abs(pre.ci95[0])})</span></div>
-              <div><strong>{hours} h</strong><span>of patient time saved in {r.days} clinic days ({flex.visits.toLocaleString()} order-flexible visits)</span></div>
+              <div><strong>{Math.round((hours / r.days) * 250)} h</strong><span>of patient time a year, projected at the same rate ({hours} h saved in {r.days} clinic days, 250 clinic days a year)</span></div>
               <div><strong>{waitCut}%</strong><span>less queueing for those patients ({b.mean_wait_min} → {sl.mean_wait_min} min)</span></div>
               <div><strong>{(pre.diff_min / sqPre.diff_min).toFixed(1)}×</strong><span>the saving of simple shortest-queue routing without ML ({Math.abs(sqPre.diff_min)} min)</span></div>
             </div>

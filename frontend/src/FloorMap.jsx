@@ -55,7 +55,7 @@ export default function FloorMap({ compact = false, masked = false }) {
   const riding = new Set(bots.filter(moving).map((r) => r.patient_id).filter(Boolean));
   const qn = (pid) => { const p = (m.patients || []).find((x) => x.patient_id === pid); return p?.queue_no ? `Q${p.queue_no}` : pid; };
 
-  const canEdit = m.simulated_world && !compact;
+  const canEdit = m.simulated_world;               // click a corridor (on either screen) to move the trolley there
   const R = m.track?.corner_radius_m || 0;
   const seg = (e) => corridorPath([node[e.from], ...(e.via || []).map(([x, y]) => ({ x, y })), node[e.to]], R, px, py);
   const kind = m.node_kind || {};

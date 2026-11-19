@@ -31,7 +31,8 @@ class ESP32Adapter(NavigationAdapter):
     RADIO_OFF_MSG = "Driving with Wi-Fi off - updates when it stops"
 
     def __init__(self, robot_id: str, on_event=None, comm_timeout_s: float = 6.0, ack_timeout_s: float = 5.0,
-                 nodes: dict | None = None, radio_off_timeout_s: float = 60.0, est_speed_m_s: float = 0.08):
+                 nodes: dict | None = None, radio_off_timeout_s: float = 60.0, est_speed_m_s: float = 0.08,
+                 obstacle_on=None, obstacle_wait_s: float = 5.0, detect_m: float = 0.25):
         super().__init__(robot_id, on_event)
         self.marker_node = {n.get("marker"): nid for nid, n in (nodes or {}).items() if n.get("marker")}
         self.nodes = nodes or {}
@@ -46,6 +47,11 @@ class ESP32Adapter(NavigationAdapter):
         self.sent_at: dict[str, float] = {}
         self.drive_t0: dict[str, float] = {}       # when the robot took the current route (for the estimated dot)
         self.est_speed_m_s = est_speed_m_s
+        # demo world on the map: a simulated trolley stops the ESTIMATE too, and after the wait the backend
+        # re-plans exactly as when the robot reports PATH_BLOCKED (the real robot is sent the new route)
+        self.obstacle_on = obstacle_on or (lambda a, b: False)
+        self.obstacle_wait_s, self.detect_m = obstacle_wait_s, detect_m
+        self.est_block = None                       # (task id, edge index, since)
         self.acked: set[str] = set()
 
     def _emit(self, kind, **data):
@@ -108,6 +114,7 @@ class ESP32Adapter(NavigationAdapter):
         self.queue.append(cmd)
         self.acked.discard(task_id); self.sent_at.pop(task_id, None)
         self.drive_t0[task_id] = time.time()
+        self.est_block = None
         self._emit("REROUTED", task_id=task_id, nodes=route.nodes, room_id=route.room_id)
         return t
 
@@ -144,7 +151,39 @@ class ESP32Adapter(NavigationAdapter):
             self.sent_at[cmd["task_id"]] = now
         return cmd
 
+    def _estimate(self):
+        """(position, blocked edge index or None) of the estimate on the current route."""
+        t = self.current
+        if not (t and t.route and t.state in ACTIVE_STATES and t.task_id in self.drive_t0):
+            return None, None
+        pts = [self.nodes.get(n) for n in t.route.nodes]
+        if not all(pts) or len(pts) < 2:
+            return None, None
+        segs = [math.dist((a["x"], a["y"]), (b["x"], b["y"])) for a, b in zip(pts, pts[1:])]
+        el, run = time.time() - self.drive_t0[t.task_id], 0.0
+        for n, L in zip(t.route.nodes[1:-1], segs):                 # stops on the way (a look into a room)
+            run += L
+            if n in (t.route.pauses or {}) and el * self.est_speed_m_s > run:
+                el = max(run / self.est_speed_m_s, el - float(t.route.pauses[n]))
+        d = min(el * self.est_speed_m_s, 0.92 * sum(segs))
+        blocked, cum = None, 0.0
+        for i, ((a, b), L) in enumerate(zip(zip(t.route.nodes, t.route.nodes[1:]), segs)):
+            stop = cum + max(L / 2 - self.detect_m, min(0.05, L / 3))
+            if self.obstacle_on(a, b) and d >= stop:
+                d, blocked = stop, i
+                break
+            cum += L
+        for a, b, L in zip(pts, pts[1:], segs):
+            if d <= L:
+                k = d / (L or 1)
+                return {"x": a["x"] + k * (b["x"] - a["x"]), "y": a["y"] + k * (b["y"] - a["y"]), "estimated": True}, blocked
+            d -= L
+        return None, blocked
+
     def position_xy(self) -> dict | None:
+        return self._estimate()[0]
+
+    def _position_xy_old(self) -> dict | None:
         """ESTIMATE of where the robot is on its route, from the time since it took the command and its
         usual speed (it reports nothing while Wi-Fi is off). Never shown as arrived: capped before the end."""
         t = self.current
@@ -246,6 +285,27 @@ class ESP32Adapter(NavigationAdapter):
     def tick(self, dt_s: float):
         now = time.time()
         t = self.current
+        if t and t.state in ACTIVE_STATES and t.route:
+            _, i = self._estimate()
+            if i is None:
+                if self.est_block and t.state == NavState.BLOCKED:      # trolley moved away in time: carry on
+                    t.state = self.status.state = NavState.NAVIGATING
+                    self.status.message = None
+                    self._emit("OBSTACLE_CLEARED", task_id=t.task_id)
+                self.est_block = None
+            else:
+                a, b = t.route.nodes[i], t.route.nodes[i + 1]
+                if not self.est_block or self.est_block[0] != t.task_id or self.est_block[1] != i:
+                    self.est_block = (t.task_id, i, now, False)
+                    t.state = self.status.state = NavState.BLOCKED
+                    self.status.message = "Obstacle ahead - stopped"
+                    self._emit("BLOCKED", task_id=t.task_id, edge=[a, b])
+                elif not self.est_block[3] and now - self.est_block[2] >= self.obstacle_wait_s:
+                    self.est_block = (t.task_id, i, self.est_block[2], True)
+                    self.status.position = a
+                    self.status.message = f"Corridor {a}-{b} blocked - turned round, asked for another route"
+                    self._emit("PATH_BLOCKED", task_id=t.task_id, edge=[a, b], at_node=a, heading_from=b,
+                               mid_segment=True)
         limit = self.radio_off_timeout_s if self.radio_off else self.comm_timeout_s
         if self.status.comm_ok and now - self.status.last_seen > limit:
             self.radio_off = False

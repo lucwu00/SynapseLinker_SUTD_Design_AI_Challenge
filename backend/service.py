@@ -164,7 +164,7 @@ class SynapseService:
             self.route_check = {}
             self.route_pause = {}        # robot -> {node: seconds} stops on its next route        # robot -> room it must look into first, even if listed as occupied
             self.last_room = {}          # patient -> room they were last in (to keep showing them on the map)          # robot -> node its next route must pass (e.g. collect a patient on the way)
-            self.order_locked = set()    # patients whose step order staff set by hand (the router follows it)
+            self.order_locked = {}       # patient -> who fixed the step order ("staff" or the system's reason)
             self.queue_override = {}     # station -> patient ids in the order staff chose            # task id -> patient: the robot is driving to collect them (no guiding yet)        # robot -> (patient, note shown on its screen), e.g. a takeover      # virtual robot -> the walk it is showing a patient on the floor map
             self.planner.blocked.clear()
             m = self.planner.map
@@ -185,7 +185,10 @@ class SynapseService:
                         scan_s=m.get("room_scan_s", 2.5))
                 elif r["adapter"] == "esp32":
                     self.adapters[rid] = ESP32Adapter(rid, on_event=self._robot_event, nodes=m["nodes"],
-                                                      est_speed_m_s=m.get("robot_speed_m_s", 0.08))
+                                                      est_speed_m_s=m.get("robot_speed_m_s", 0.08),
+                                                      obstacle_on=lambda a, b: edge_key(a, b) in self.world["obstacles"],
+                                                      obstacle_wait_s=m.get("obstacle_wait_s", 5),
+                                                      detect_m=m.get("obstacle_detect_m", 0.25))
                 self.db.upsert("robots", "robot_id", dict(robot_id=rid, kind=r["kind"], adapter=r["adapter"],
                                                           patient_id=None, status="IDLE", updated_at=now))
             self.robot_heading = {rid: None for rid in self.cfg["robots"]}   # node each robot faces away from
@@ -289,7 +292,7 @@ class SynapseService:
         with self.lock:
             p = self._patient(pid)
             if unlock:
-                self.order_locked.discard(pid)
+                self.order_locked.pop(pid, None)
                 self._event("ORDER_UNLOCKED", "staff", f"{pid}: {by} let the system choose the order again", patient_id=pid)
                 self.db.update("patients", "patient_id", pid, recommendation=None, updated_at=time.time())
                 self.refresh("order_unlocked")
@@ -313,12 +316,36 @@ class SynapseService:
                 self.rules.build_stages(req, p["visit_type"])
             except ValueError as e:
                 raise ServiceError(f"That order breaks the workflow rules: {e}", 422)
-            self.order_locked.add(pid)
+            self.order_locked[pid] = "staff"
             self.db.update("patients", "patient_id", pid, required_steps=req, updated_at=time.time(),
                            **({"recommendation": None} if p["status"] == "AWAITING_GUIDANCE" else {}))
             self._event("ORDER_SET_BY_STAFF", "staff", f"{pid}: {by} set the order "
                         f"{' -> '.join(LABEL_TXT.get(x, x) for x in order)}", patient_id=pid)
             self.refresh("order_set")
+            return self.journey(pid)
+
+    def push_back(self, pid: str, step: str, reason: str) -> dict:
+        """A stressed test (congested, closed) goes to the back of the tests the patient may do in any order.
+        If they were on their way there, they are re-guided."""
+        with self.lock:
+            p = self._patient(pid)
+            if p["status"] == "GUIDED" and p["assigned_destination"] == step:
+                self.db.update("patients", "patient_id", pid, status="AWAITING_GUIDANCE", assigned_destination=None,
+                               assigned_room=None, updated_at=time.time())
+                p = self._patient(pid)
+            pend = self._pending(p)
+            if step not in pend:
+                return self.journey(pid)
+            busy = p["assigned_destination"] if p["status"] in ("GUIDED", "QUEUED", "IN_SERVICE") else None
+            stop = pend.index("CONSULT") if "CONSULT" in pend else len(pend)
+            group = [x for x in pend[:stop] if x != step and x != busy]
+            if not group:
+                return self.journey(pid)                   # nothing to swap with
+            order = ([busy] if busy else []) + group + [step] + pend[stop:]
+            self.reorder_steps(pid, order, by="System")
+            self.order_locked[pid] = reason
+            self._event("ORDER_CHANGED", "rules", f"{pid}: {LABEL_TXT.get(step, step)} moved to the back ({reason})",
+                        patient_id=pid)
             return self.journey(pid)
 
     def set_priority(self, pid: str, priority: str, by: str = "Nurse") -> dict:
@@ -1268,16 +1295,19 @@ class SynapseService:
 
     VIRTUAL_WALK_S = 10.0
 
-    def show_virtual_walk(self, rid: str, pid: str, room: str, from_node: str | None = None):
+    def show_virtual_walk(self, rid: str, pid: str, room: str | None, from_node: str | None = None,
+                          to_node: str | None = None, label: str | None = None):
         """A virtual robot (screen) shows a patient the way: drawn on the floor map as a dashed route and
-        a marker that walks it. Nothing on the table moves."""
+        a marker that walks it. Nothing on the table moves. `to_node`: a place that is not a room (e.g. the
+        way out of the table area to a station that is not on it)."""
         with self.lock:
             src = from_node or self.planner.map["start_node"]
-            route = self.planner.plan_to_node(src, self.planner.room_node(room), self.planner.map["rooms"][room]["station"])
+            dst = to_node or self.planner.room_node(room)
+            route = self.planner.plan_to_node(src, dst, label or "WALK")
             self.virtual_walks[rid] = dict(patient_id=pid, room=room, nodes=route.nodes, t0=time.time())
-            self._event("DIRECTIONS_SHOWN", "system", f"{rid} (virtual) walks {pid} to "
-                        f"{self.planner.map['rooms'][room]['label']} on screen via {' -> '.join(route.nodes)}",
-                        patient_id=pid, robot_id=rid)
+            where = label or self.planner.map["rooms"][room]["label"]
+            self._event("DIRECTIONS_SHOWN", "system", f"{rid} (virtual) walks {pid} towards {where} on screen via "
+                        f"{' -> '.join(route.nodes)}", patient_id=pid, robot_id=rid)
             self.bus.publish({"type": "state", "reason": "virtual_walk"})
 
     def _virtual_robots(self) -> list:
@@ -1353,7 +1383,7 @@ class SynapseService:
                         classroom_label=v.get("classroom_label"), staffed=bool(rooms[k]["staffed"]),
                         occupied=bool(rooms[k]["occupied"]), source=rooms[k]["occupancy_source"],
                         person_present=k in self.world["people"]) for k, v in m["rooms"].items() if k in rooms],
-            robots=robots, simulated_world=any(a.__class__.__name__ == "SimulationAdapter" for a in self.adapters.values()),
+            robots=robots, simulated_world=True,         # trolleys and people can be placed on the map in every mode
             patients=[dict(patient_id=p["patient_id"], name=p["display_name"], queue_no=p.get("queue_no"),
                            status=p["status"], step=p["assigned_destination"],
                            room_id=p["assigned_room"] or self.last_room.get(p["patient_id"]),
@@ -1488,7 +1518,7 @@ class SynapseService:
                                                           "escalated", "escalation_reason", "required_steps",
                                                           "completed_steps", "recommendation", "updated_at")},
                                      eligible_now=j["eligible_now"], queue=j["queue"], patients_ahead=j["patients_ahead"],
-                                     order_locked=p["patient_id"] in self.order_locked,
+                                     order_locked=self.order_locked.get(p["patient_id"]),
                                      collecting_robot=next((a.robot_id for t, (x, _) in self.pickups.items() if x == p["patient_id"]
                                                             for a in self.adapters.values() if a.current and a.current.task_id == t), None),
                                      room=j["room"],

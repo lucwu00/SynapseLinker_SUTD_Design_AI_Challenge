@@ -112,7 +112,7 @@ function OrdersEditor({ p, act }) {
       )}
       {p.order_locked && (
         <span className="small">
-          <span className="pill-staff">Order set by staff</span>{" "}
+          <span className="pill-staff">{p.order_locked === "staff" ? "Order set by staff" : `Order changed: ${p.order_locked}`}</span>{" "}
           <button onClick={() => act(url, { unlock: true, recorded_by: "Nurse" })}>Let the system choose</button>
         </span>
       )}

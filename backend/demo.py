@@ -258,97 +258,110 @@ def s1(svc):
                            f"AUTONOMOUS: destination confirmed and navigation task created for EDi-01 (status {p['status']})."])
 
 
-def s2(svc):
-    if not _exists(svc, "ORTHO_002"):
-        # SIMULATED starting point: the single ECG machine is free right now. Scene 3 then sends it a burst of
-        # ward/ED requests. (Background values are scenario inputs, not predictions.)
-        svc.update_station("ECG", background_queue=0, recent_wait_hint=3.0, arrivals_hint=0)
-        svc.check_in({**PATIENTS["ORTHO_002"], "appointment_time": svc.clock.to_dict()["clinic_time"]})
-    r = _rec(svc, "ORTHO_002")
-    lines = [f"{c['step']}: wait {c['predicted_wait_min']} min, risk {c['alert_level']}, "
-             f"group finished in ~{c['est_stage_completion_min']} min" for c in r.get("candidates", [])]
-    return dict(scene=2, title="Multi-stage optimisation",
-                narration=["ORTHO_002 is pre-op: X-ray, blood test and ECG may be done in any order (rule R05).",
-                           "SIMULATED: the ECG machine is free at the moment."] + lines +
-                          [f"RECOMMENDED ORDER: {' -> '.join(r.get('recommended_sequence', []))}",
-                           "ML predicts waits and risk; the look-ahead compares all 6 permitted orders."])
-
-
-TEST_NAME = {"XRAY": "X-ray", "PHLEBOTOMY": "blood-test", "ECG": "ECG"}
+P2 = "ORTHO_002"
 # Simulated congestion levels, mildest first: (waiting, recent mean wait min, arrivals last 15 min).
 CONGESTION = [(6, 35.0, 6), (10, 50.0, 10), (16, 70.0, 14), (24, 90.0, 20), (4, 60.0, 12), (8, 120.0, 16)]
-_FIELDS = ("background_queue", "recent_wait_hint", "arrivals_hint")
 
 
-def _what_if(svc, pid, station, q, w, arr):
-    """Recommended order for `pid` if `station` were congested - computed without changing anything."""
-    with svc.lock:
-        row = svc._station(station)
-        svc.db.update("stations", "station_id", station, background_queue=q, recent_wait_hint=w, arrivals_hint=arr)
-        try:
-            now = svc.clock.now_min()
-            views, doctor_q = svc.station_views(now)
-            p = svc._patient(pid)
-            pv = dict(views)
-            dv, doc = svc.doctor_view(p, views, doctor_q, now)
-            pv["CONSULT"] = dv
-            rec = svc.engine.recommend(svc.patient_context(p, now), pv, svc.clinic_context(now, views, doc),
-                                       explain=False, bn_stations=views)
-            return rec.get("recommended_sequence", [])
-        finally:
-            svc.db.update("stations", "station_id", station, **{k: row[k] for k in _FIELDS})
+def _guide_virtual(svc, pid):
+    """EDi-02 (virtual) shows the patient to the next step; drawn on the floor map. A station that is not on
+    the table: the walk heads for the table's way out, labelled with where she is going."""
+    if _status(svc, pid) != "AWAITING_GUIDANCE":
+        return None
+    if svc._patient(pid)["robot_id"] != "EDi-02":
+        svc.assign_robot("EDi-02", pid, force=True)
+    p = svc._patient(pid)
+    el = svc.eligible(p)
+    rec = (p.get("recommendation") or {}).get("recommended_station")
+    step = rec if rec in el else (el[0] if el else None)
+    if not step:
+        return None
+    svc.confirm_destination(pid, step, robot_id="EDi-02", source="autonomous")
+    w = svc.virtual_walks.get("EDi-02")
+    src = w["nodes"][-1] if w and w.get("patient_id") == pid else svc.planner.map["start_node"]
+    st = svc.rules.station_of(step)
+    if svc.planner.on_map(st):
+        room = svc._choose_room(st, src)
+        if room:
+            svc.db.update("patients", "patient_id", pid, assigned_room=room)
+            svc.show_virtual_walk("EDi-02", pid, room, from_node=src)
+            return step
+    nodes = svc.planner.map["nodes"]
+    exit_node = svc.planner.map.get("demo", {}).get("exit_node", "C_BR")
+    if exit_node not in nodes or exit_node == src:
+        exit_node = svc.planner.map["start_node"] if src != svc.planner.map["start_node"] else \
+            next((e["to"] if e["from"] == src else e["from"] for e in svc.planner.map["edges"] if src in (e["from"], e["to"])), src)
+    try:
+        svc.show_virtual_walk("EDi-02", pid, None, from_node=src, to_node=exit_node,
+                              label=f"{TEST_NAME.get(step, step)} (not on this table)")
+    except Exception:                                          # no way to draw it on this map: directions only
+        pass
+    return step
+
+
+def _seq(svc, pid):
+    """The order she is following now: the router's recommended sequence of her remaining tests."""
+    r = _rec(svc, pid).get("recommended_sequence") or []
+    return " -> ".join(TEST_NAME.get(x, x) for x in r if x in ("XRAY", "PHLEBOTOMY", "ECG")) or _order(svc, pid)
+
+
+def _order(svc, pid):
+    return " -> ".join(TEST_NAME.get(x, x) for x in svc._pending(svc._patient(pid)) if x in ("XRAY", "PHLEBOTOMY", "ECG"))
+
+
+def s2(svc):
+    if not _exists(svc, P2):
+        # SIMULATED starting point: the single ECG machine is free right now.
+        svc.update_station("ECG", background_queue=0, recent_wait_hint=3.0, arrivals_hint=0)
+        svc.check_in({**PATIENTS[P2], "appointment_time": svc.clock.to_dict()["clinic_time"], "robot_id": "EDi-02"})
+    r = _rec(svc, P2)
+    lines = [f"{TEST_NAME.get(c['step'], c['step'])}: wait {c['predicted_wait_min']} min, risk {c['alert_level']}"
+             for c in r.get("candidates", [])]
+    step = _guide_virtual(svc, P2)
+    return dict(scene=2, title="Another patient: pre-op test order first",
+                narration=["Mdm Lim (pre-op) needs an X-ray, a blood test and an ECG before the doctor, in any order (rule R05)."]
+                          + lines +
+                          [f"ML + RULES: best order now {_seq(svc, P2)}.",
+                           (f"EDi-02 guides her to {TEST_NAME.get(step, step)} first (watch the floor map; blood test "
+                            "and ECG are not on this table, so she heads off the table for those)." if step else
+                            "She is already on her way.")])
+
+
+TEST_NAME = {"XRAY": "X-ray", "PHLEBOTOMY": "blood test", "ECG": "ECG"}
 
 
 def s3(svc):
-    # Which test the look-ahead puts first depends on the real time of day. The scene congests the
-    # earliest test on ORTHO_002's plan for which the trained models predict that waiting it out is
-    # quicker (the learned profile expects that queue to ease), using the mildest congestion that does.
-    if not _exists(svc, "ORTHO_002"): s2(svc)
-    before = _rec(svc, "ORTHO_002").get("recommended_sequence", [])
-    choice = None
-    targets = ["ECG"]                                                 # scene: ECG room congestion
-    ok = [lambda tg, a: a.index(tg) > before.index(tg),               # 1st choice: the congested test moves later
-          lambda tg, a: a != before and a.index(tg) >= before.index(tg)]  # else: it reshuffles the others
-    for accept in ok:
-        for target in targets:
-            for lv in CONGESTION:
-                after = _what_if(svc, "ORTHO_002", target, *lv)
-                if after and target in after and accept(target, after):
-                    choice = (target, lv)
-                    break
-            if choice: break
-        if choice: break
-    target, (q, w, arr) = choice or ("ECG", CONGESTION[1])
-    svc.update_station(target, background_queue=q, recent_wait_hint=w, arrivals_hint=arr)
-    pr = svc.station_predictions[target]
-    r = _rec(svc, "ORTHO_002")
-    after = r.get("recommended_sequence", [])
-    tc = next((c for c in r.get("candidates", []) if c["step"] == target), {})
-    best = min((c["est_stage_completion_min"] for c in r.get("candidates", [])), default=0)
-    name = TEST_NAME.get(target, target)
-    moved = target in before and target in after and after.index(target) > before.index(target)
-    return dict(scene=3, title="Bottleneck prediction",
-                narration=[f"SIMULATED: the {name} room receives urgent ward and ED requests ({q} waiting, recent wait {w:.0f} min).",
-                           f"ML: {name} bottleneck probability (next 30 min) = {pr['bottleneck_probability_next_30min']:.2f} "
-                           f"-> alert {pr['alert_level']}; predicted wait for a new arrival {pr['predicted_wait_new_arrival_min']} min.",
-                           f"AUTONOMOUS: ORTHO_002 order {' -> '.join(before)}  ==>  {' -> '.join(after)}",
-                           (f"{name} moves later: the learned profile expects its queue to ease, so going there now would take "
-                            f"~{max(tc.get('est_stage_completion_min', 0) - best, 0):.0f} min longer.") if moved else
-                           (f"The learned profile expects the {name} queue to stay long, so waiting it out does not help; "
-                            f"the other tests are reordered around it."
-                            if after != before else
-                            f"Order kept: at this time of day the models expect the {name} queue to stay long, so moving it does not save time.")])
+    """ECG congested: the ECG test goes to the back of her order."""
+    if not _exists(svc, P2): s2(svc)
+    before = _seq(svc, P2)
+    q, w, arr = CONGESTION[2]
+    svc.update_station("ECG", background_queue=q, recent_wait_hint=w, arrivals_hint=arr)
+    pr = svc.station_predictions["ECG"]
+    svc.push_back(P2, "ECG", "ECG congested")
+    step = _guide_virtual(svc, P2)
+    return dict(scene=3, title="ECG room congestion",
+                narration=[f"SIMULATED: the ECG room gets urgent ward and ED requests ({q} waiting, recent wait {w:.0f} min).",
+                           f"ML: ECG bottleneck risk in the next 30 min {pr['bottleneck_probability_next_30min']:.0%} "
+                           f"({pr['alert_level']}); predicted wait for a new arrival {pr['predicted_wait_new_arrival_min']} min.",
+                           f"RULES: her tests may be done in any order, so ECG goes to the back: {before}  ==>  {_order(svc, P2)}.",
+                           f"EDi-02 now guides her to {TEST_NAME.get(step, step)}." if step else
+                           "She finishes the test she is at; the new order applies after it."])
 
 
 def s4(svc):
-    if not _exists(svc, "ORTHO_002"): s2(svc)
+    """Blood-test room closes: the blood test goes to the back of her order."""
+    if not _exists(svc, P2): s2(svc)
+    before = _order(svc, P2) if P2 in svc.order_locked else _seq(svc, P2)
     svc.update_station("PHLEBOTOMY", available=False)
-    r = _rec(svc, "ORTHO_002")
-    return dict(scene=4, title="Unexpected disruption",
+    svc.push_back(P2, "PHLEBOTOMY", "blood-test room closed")
+    step = _guide_virtual(svc, P2)
+    return dict(scene=4, title="Blood-test room closes",
                 narration=["SIMULATED: the blood-test room becomes unavailable (staff/sensor update).",
-                           f"RULES: excluded -> {[c for c in r.get('rule_checks', []) if 'unavailable' in c]}",
-                           f"New recommendation for ORTHO_002: {r.get('recommended_station')} "
-                           f"(order {' -> '.join(r.get('recommended_sequence', []))})."])
+                           f"RULES: no one is sent to a closed room, so the blood test goes to the back: {before}  ==>  "
+                           f"{_order(svc, P2)}.",
+                           f"EDi-02 now guides her to {TEST_NAME.get(step, step)}." if step else
+                           "She finishes the test she is at; the new order applies after it.",
+                           "Reopen the room on its station card to let her do the blood test."])
 
 
 def s5(svc):

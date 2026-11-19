@@ -684,3 +684,37 @@ def test_floor_map_keeps_patients_and_draws_only_the_route_ahead(table_svc):
     demo.scene(svc, 2); demo.scene(svc, 3); _drive(svc); demo.scene(svc, 4); _drive(svc); demo.scene(svc, 5)
     rooms = {p["patient_id"]: p["room_id"] for p in svc.floor_map()["patients"]}
     assert rooms == {"ORTHO_001": "ROOM_C", "ORTHO_101": "ROOM_A"}                 # both still on the map
+
+
+def test_stress_scenes_push_the_stressed_test_back(table_svc):
+    svc = table_svc
+    demo.scene(svc, 7)
+    assert svc._patient("ORTHO_002")["robot_id"] == "EDi-02"
+    assert any(r["robot_id"] == "EDi-02" for r in svc.floor_map()["robots"])      # her walk is on the map
+    demo.scene(svc, 8)
+    pend = svc._pending(svc._patient("ORTHO_002"))
+    assert pend.index("ECG") == pend.index("CONSULT") - 1                        # ECG last of her tests
+    demo.scene(svc, 9)
+    pend = svc._pending(svc._patient("ORTHO_002"))
+    assert pend.index("PHLEBOTOMY") == pend.index("CONSULT") - 1                 # blood test now last
+
+
+def test_esp32_map_estimate_respects_the_trolley(monkeypatch):
+    """Scene 10 with the real-robot adapter: the map ball stops at the trolley, then is re-routed."""
+    import types
+    import navigation.esp32_adapter as E
+    from backend import service as SV
+    clock = [1000.0]
+    monkeypatch.setattr(E, "time", types.SimpleNamespace(time=lambda: clock[0]))
+    monkeypatch.setitem(SV.CONFIG["robots"]["EDi-01"], "adapter", "esp32")
+    svc = SV.SynapseService(db_path=":memory:", predictor=PRED)
+    svc.planner = table_planner()
+    svc.reset()
+    demo.scene(svc, 10)
+    a = svc.adapters["EDi-01"]
+    for _ in range(40):
+        clock[0] += 0.5
+        a.tick(0.5)
+    assert a.current.route.nodes[:2] == ["J_L", "J_R"]                          # turned round, middle corridor
+    assert ("C_TL", "J_L") in svc.planner.blocked
+    svc.stop()

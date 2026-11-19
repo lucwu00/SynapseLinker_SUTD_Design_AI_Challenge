@@ -260,6 +260,12 @@ function RobotCard({ r, act }) {
           <button onClick={() => act(`/robots/${r.robot_id}/command`, { action: "clear_obstacle" })}>Clear</button>
           <button className="danger" onClick={() => act(`/robots/${r.robot_id}/command`, { action: "stop" })}>Emergency stop</button>
           <button onClick={() => act(`/robots/${r.robot_id}/command`, { action: "resume" })}>Resume</button>
+          {t && ["NAVIGATING", "BLOCKED"].includes(t.state) && (
+            <button title="The robot is on the destination bar but has not reported it (Wi-Fi, stalled). Place it there first."
+                    onClick={() => act(`/robots/${r.robot_id}/command`, { action: "report_arrival", task_id: t.task_id })}>
+              Mark arrived
+            </button>
+          )}
         </div>
       )}
       <a className="small" href={`#/robot/${r.robot_id}`} target="_blank" rel="noreferrer">Open {r.robot_id} screen</a>

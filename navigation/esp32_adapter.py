@@ -113,8 +113,16 @@ class ESP32Adapter(NavigationAdapter):
             self.status.state, self.status.task_id, self.status.message = NavState.IDLE, None, reason
         return self.status
 
-    def report_arrival(self, task_id) -> RobotStatus:
-        return self.handle_status({"robot_id": self.robot_id, "task_id": task_id, "event": "ARRIVED"})
+    def report_arrival(self, task_id, room_scan: str | None = None) -> RobotStatus:
+        """Staff confirm the robot is on the destination bar (it did not report, e.g. Wi-Fi or a stall).
+        The ESP32 is told to drop the task so it does not drive on by itself."""
+        t = self.tasks.get(task_id)
+        if t and t.state in ACTIVE_STATES:
+            self.queue.appendleft({"command": "CANCEL", "task_id": task_id})
+        p = {"robot_id": self.robot_id, "task_id": task_id, "event": "ARRIVED"}
+        if room_scan:
+            p["room_scan"] = room_scan
+        return self.handle_status(p)
 
     # ---------------------------------------------------------------- HTTP side
     def poll_command(self) -> dict:

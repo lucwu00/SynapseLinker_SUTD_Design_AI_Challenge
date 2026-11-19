@@ -548,3 +548,22 @@ def test_assistant_uses_live_journey(table_svc, monkeypatch):
     assert '"queue_number": "1001"' in sent["system"] and "Mr Tan" not in sent["system"]      # queue number only
     assert sent["messages"][-1] == {"role": "user", "content": "where do I go?"}
     assert [m["role"] for m in sent["messages"]] == ["user", "assistant", "user"]
+
+
+def test_mark_arrived_uses_demo_world_for_the_scan():
+    """Presenter 'Mark arrived' for a real robot that did not report: the room is as the demo world has it."""
+    from backend.service import SynapseService
+    svc = SynapseService(db_path=":memory:", predictor=PRED)
+    svc.planner = table_planner()
+    svc.adapters["EDi-01"] = ESP32Adapter("EDi-01", on_event=svc._robot_event, nodes=svc.planner.map["nodes"])
+    svc.reset()
+    svc.adapters["EDi-01"] = ESP32Adapter("EDi-01", on_event=svc._robot_event, nodes=svc.planner.map["nodes"])
+    svc.update_room("ROOM_B", person_present=True)
+    svc.check_in({**demo.XRAY_PATIENT, "robot_id": "EDi-01"})
+    t = svc.adapters["EDi-01"].current
+    assert t and t.route.room_id == "ROOM_C"
+    svc.update_room("ROOM_C", person_present=True)
+    svc.robot_command("EDi-01", "report_arrival", t.task_id)
+    rooms = {r["room_id"]: r for r in svc.db.query("SELECT * FROM rooms")}
+    assert rooms["ROOM_C"]["occupied"] == 1                                    # scan taken from the demo world
+    svc.stop()

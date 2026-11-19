@@ -1168,7 +1168,12 @@ class SynapseService:
             elif action == "report_arrival":
                 if not task_id:
                     raise ServiceError("task_id required", 422)
-                a.report_arrival(task_id)
+                t = a.tasks.get(task_id)
+                if isinstance(a, SimulationAdapter):
+                    a.report_arrival(task_id)
+                else:                                   # staff say it is there; the room is as the demo world has it
+                    room = t.route.room_id if t and t.route else None
+                    a.report_arrival(task_id, ("OCCUPIED" if room in self.world["people"] else "FREE") if room else None)
             else:
                 raise ServiceError(f"Unknown action {action}", 422)
             st = a.get_robot_status()

@@ -1289,8 +1289,10 @@ class SynapseService:
             segs = [math.hypot(b["x"] - a["x"], b["y"] - a["y"]) for a, b in zip(pts, pts[1:])]
             total = sum(segs) or 1.0
             f = min((time.time() - w["t0"]) * self.planner.map.get("robot_speed_m_s", 0.08) / total, 1.0)
-            if p["status"] == "IN_SERVICE":
-                f = 1.0                                     # she is being seen: the walk is over
+            if p["status"] == "GUIDED":
+                f = min(f, 0.92)                            # parks just short of the room until staff mark her arrived
+            else:
+                f = 1.0                                     # arrived / being seen: the walk is over
             d, pos = f * total, dict(x=pts[-1]["x"], y=pts[-1]["y"])
             for a, b, L in zip(pts, pts[1:], segs):
                 if d <= L:

@@ -577,6 +577,9 @@ def test_table_demo_story_with_manual_buttons(table_svc):
     svc.change_orders(A, add=["XRAY"])                                   # ordered during the consultation
     assert svc._patient(A)["required_steps"] == ["REGISTRATION", "CONSULT", "XRAY", "REVIEW", "PAYMENT"]
     demo.scene(svc, 2)
+    v = [r for r in svc.floor_map()["robots"] if r["robot_id"] == "EDi-02"][0]
+    assert v["state"] == "NAVIGATING"                                    # EDi-02 parks short until Mark arrived
+    svc.arrive_at_station(B)                                             # Mark arrived
     svc.start_service(B)                                                 # system now knows X-ray Room 1 is busy
     demo.scene(svc, 3); _drive(svc)
     assert svc._patient(A)["assigned_room"] == "ROOM_C"

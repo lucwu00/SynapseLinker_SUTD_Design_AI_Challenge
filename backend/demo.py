@@ -127,8 +127,7 @@ def d2(svc):
         svc.confirm_destination(B, "XRAY", source="staff")
         svc.db.update("patients", "patient_id", B, assigned_room=room)
         svc.show_virtual_walk("EDi-02", B, room)            # drawn on the floor map only; nothing on the table moves
-        svc.arrive_at_station(B)                             # she is in the room
-        svc.update_room(room, person_present=True)
+        svc.update_room(room, person_present=True)           # staff press Mark arrived when she is there
     lbl = _room_label(svc, room)
     table = f"ON THE TABLE: put the white block in {lbl} - that is Mdm Lee. Leave EDi-01 where it is. " if _physical(svc) else ""
     return dict(title="Patient B checks in, X-ray first",
@@ -137,7 +136,8 @@ def d2(svc):
                            "sees the doctor. Blood test and ECG are not on this table, so her test today is an X-ray.",
                            f"EDi-01 is busy with Mr Tan, so EDi-02 (virtual assistant) guides her to {lbl}. On the floor "
                            "map EDi-02 walks her there on a dashed line; on the table only EDi-01 is real, so nothing moves.",
-                           table + f"She is now waiting in {lbl}. Go to scene 3."])
+                           table + f"EDi-02 stops just short of {lbl}: press Mark arrived on her card when she gets "
+                                   "there (or go straight to scene 3, which does it for you)."])
 
 
 def d3(svc):

@@ -188,25 +188,28 @@ def d4(svc):
         svc.complete_service(B, "XRAY")
     pb = svc._patient(B)
     if pb["robot_id"] != "EDi-01" or pb["status"] == "AWAITING_GUIDANCE":
-        svc.db.update("patients", "patient_id", B, assigned_room=room)   # she is still standing in X-ray Room 1
         svc._event("ROBOT_CHOSEN", "system", "EDi-02 is now helping another patient at Registration. EDi-01 has just "
                    "dropped Mr Tan at X-ray Room 2, is nearby and free: EDi-01 takes over Mdm Lee", patient_id=B, robot_id="EDi-01")
         a = svc.adapters.get("EDi-01")
-        if a and not (a.current and a.current.state.value in ("NAVIGATING", "BLOCKED")):
-            svc.fetch_patient("EDi-01", B)                   # drive to X-ray Room 1 to collect her
-        svc.assign_robot("EDi-01", B, force=True)
+        if a and a.current and a.current.state.value in ("NAVIGATING", "BLOCKED"):
+            raise ServiceError(NOT_ARRIVED, 409)
+        svc.update_room(room, person_present=False)                      # she steps out to meet EDi-01
+        svc.route_via["EDi-01"] = svc.planner.map["rooms"][room]["node"]  # its route passes X-ray Room 1, where she is
+        svc.assign_robot("EDi-01", B, force=True)                         # auto-dispatch sends her to the consultation
+        if _status(svc, B) == "AWAITING_GUIDANCE":
+            svc.confirm_destination(B, "CONSULT", robot_id="EDi-01", source="staff")
+        svc.route_via.pop("EDi-01", None)
         svc.robot_notes["EDi-01"] = (B, "takeover")
     lbl = _room_label(svc, room)
-    table = (f"ON THE TABLE: leave the white block in {lbl} until EDi-01 stops there, then take it out "
-             "(she walks with the robot). Consultation Room 1 stays empty. " if _physical(svc) else "")
+    route = " -> ".join(svc.adapters["EDi-01"].current.route.nodes) if svc.adapters.get("EDi-01") and svc.adapters["EDi-01"].current and svc.adapters["EDi-01"].current.route else ""
+    table = (f"ON THE TABLE: take the white block out of {lbl} (she has stepped out to meet EDi-01). " if _physical(svc) else "")
     return dict(title="B to consultation (EDi-01)",
                 narration=["Mr Tan's X-ray has started in X-ray Room 2.",
                            "Mdm Lee's X-ray is done. RULES: her test is complete, so she may now see the doctor.",
                            "EDi-02 has been taken by another patient at Registration. EDi-01 has just dropped Mr Tan at "
                            "X-ray Room 2, so it is nearby and free.",
-                           f"HANDOVER: EDi-01 takes over her journey (it was EDi-02's). It drives round the top-right corner "
-                           f"to {lbl} to collect her, then guides her on to Consultation Room 1 and scans the room on "
-                           "arrival (free).",
+                           f"HANDOVER: EDi-01 takes over her journey (it was EDi-02's) and guides her to Consultation Room 1, "
+                           f"passing {lbl} where she is waiting ({route}). It scans the room on arrival (free).",
                            table + "Go to scene 5 while it drives."])
 
 

@@ -409,11 +409,10 @@ def test_table_demo_story(table_svc):
     _drive(svc)
     assert st("ORTHO_001")["status"] == "QUEUED" and st("ORTHO_001")["assigned_room"] == "ROOM_C"
     demo.scene(svc, 4)
-    assert st("ORTHO_101")["assigned_room"] == "ROOM_B"                 # EDi-01 first goes to collect her
+    assert st("ORTHO_101")["status"] == "GUIDED" and st("ORTHO_101")["assigned_destination"] == "CONSULT"
+    assert "S2" in svc.adapters["EDi-01"].current.route.nodes           # passes X-ray Room 1, where she is
     _drive(svc)
     assert st("ORTHO_101")["status"] == "QUEUED" and st("ORTHO_101")["assigned_room"] == "ROOM_A"
-    types = [e["type"] for e in svc.db.query("SELECT type FROM events")]
-    assert "PATIENT_COLLECTED" in types
     assert st("ORTHO_101")["robot_id"] == "EDi-01"
     demo.scene(svc, 5)
     assert st("ORTHO_001")["robot_id"] is None and svc.eligible(st("ORTHO_001")) == ["REVIEW"]
@@ -663,11 +662,8 @@ def test_esp32_story_with_staff_confirmations(monkeypatch):
     svc.arrive_at_station(A)
     assert svc._patient(A)["assigned_room"] == "ROOM_C"
     demo.scene(svc, 4)
-    with pytest.raises(ServiceError):                                              # she is being collected
-        svc.confirm_destination(B, "CONSULT")
-    assert svc._patient(B)["status"] == "AWAITING_GUIDANCE"                        # nothing half-changed
-    svc.robot_command("EDi-01", "report_arrival", a.current.task_id)              # collected her
-    svc.arrive_at_station(B)
+    assert svc._patient(B)["status"] == "GUIDED" and "S2" in a.current.route.nodes
+    svc.arrive_at_station(B)                                                       # staff: EDi-01 brought her
     p = svc._patient(B)
     assert p["status"] == "QUEUED" and p["assigned_destination"] == "CONSULT" and p["assigned_room"] == "ROOM_A"
     assert a.get_robot_status().position == "S3"

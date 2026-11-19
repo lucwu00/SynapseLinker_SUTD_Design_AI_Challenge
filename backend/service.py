@@ -160,6 +160,7 @@ class SynapseService:
             self.virtual_walks = {}
             self.robot_notes = {}
             self.pickups = {}
+            self.route_via = {}          # robot -> node its next route must pass (e.g. collect a patient on the way)
             self.order_locked = set()    # patients whose step order staff set by hand (the router follows it)
             self.queue_override = {}     # station -> patient ids in the order staff chose            # task id -> patient: the robot is driving to collect them (no guiding yet)        # robot -> (patient, note shown on its screen), e.g. a takeover      # virtual robot -> the walk it is showing a patient on the floor map
             self.planner.blocked.clear()
@@ -975,8 +976,9 @@ class SynapseService:
             room = self._choose_room(st, here, heading_from=heading)
             if not room:
                 raise ServiceError(f"No free, reachable {st} room on the track", 409)
+            via = self.route_via.pop(rid, None)
             try:
-                route = self.planner.plan_to_node(here, self.planner.room_node(room), st, heading_from=heading)
+                route = self._plan_via(here, self.planner.room_node(room), st, heading, via)
             except MapError as e:
                 raise ServiceError(f"Cannot plan route: {e}", 422)
             route.room_id = room
@@ -1024,6 +1026,33 @@ class SynapseService:
             self._event("NAV_TASK", "system", f"{tid}: {rid} going to collect {pid} from {label} "
                         f"via {' -> '.join(route.nodes)}", patient_id=pid, robot_id=rid, station_id=st)
             return self.db.one("SELECT * FROM nav_tasks WHERE task_id=?", (tid,))
+
+    def _plan_via(self, src: str, dst: str, label: str, heading: str | None, via: str | None):
+        """Plan src -> dst; with `via`, a route that passes that node (corridors that lead away from it are
+        set aside while planning, then restored)."""
+        route = self.planner.plan_to_node(src, dst, label, heading_from=heading)
+        if not via or via in route.nodes or via in (src, dst):
+            return route
+        lead = self.planner.plan_to_node(src, via, label, heading_from=heading).nodes
+        allowed = {edge_key(a, b) for a, b in zip(lead, lead[1:])}
+        temp = []
+        try:
+            for _ in range(6):
+                bad = next((edge_key(a, b) for a, b in zip(route.nodes, route.nodes[1:])
+                            if edge_key(a, b) not in allowed and edge_key(a, b) not in self.planner.blocked), None)
+                if bad is None:
+                    break
+                self.planner.block(*bad); temp.append(bad)
+                try:
+                    route = self.planner.plan_to_node(src, dst, label, heading_from=heading)
+                except MapError:
+                    break
+                if via in route.nodes:
+                    return route
+        finally:
+            for e in temp:
+                self.planner.unblock(*e)
+        return self.planner.plan_to_node(src, dst, label, heading_from=heading)
 
     def _save_route(self, tid: str, a, room: str):
         t = a.tasks[tid]

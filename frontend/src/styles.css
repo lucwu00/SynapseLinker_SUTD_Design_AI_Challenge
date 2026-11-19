@@ -301,3 +301,8 @@ button.big { font-size: 1.3rem; min-height: 3.6rem; border-radius: var(--radius-
 .scenes-more { padding-top: 0; }
 .scenes-more > button { font-size: .8rem; opacity: .85; }
 .patients-flow { margin-bottom: 1rem; }
+.impact { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; margin: .6rem 0 .8rem; }
+.impact > div { border-left: 4px solid var(--cast, #0e6f73); padding: .2rem .7rem; }
+.impact strong { display: block; font-size: 2rem; line-height: 1.1; }
+.impact span { font-size: .85rem; color: var(--muted); }
+@media (max-width: 900px) { .impact { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

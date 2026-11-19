@@ -42,7 +42,7 @@ export default function FloorMap({ compact = false, masked = false }) {
 
   const table = m.table || null;                     // tabletop demo (e.g. 60 x 60 cm)
   const xs = m.nodes.map((n) => n.x), ys = m.nodes.map((n) => n.y);
-  const pad = 0.75, tp = 0.07;                        // tp: room cards may hang over the table edge
+  const pad = 0.75, tp = 0.13;                        // tp: room cards may hang over the table edge
   const [minX, maxX, minY, maxY] = table ? [-tp, table.w + tp, -tp, table.h + tp]
     : [Math.min(...xs) - pad, Math.max(...xs) + pad, Math.min(...ys) - pad, Math.max(...ys) + pad];
   const S = table ? 480 / table.w : 120, W = (maxX - minX) * S, H = (maxY - minY) * S;

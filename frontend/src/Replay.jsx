@@ -59,10 +59,31 @@ export default function Replay() {
   return (
     <section className="replay">
       <h2>Before/after replay, held-out {r.period}</h2>
-      <p className="lede">
-        For patients whose tests may be done in any order, Synapse Linker cut time in clinic by <strong>{Math.abs(flex.diff_min)} min ({flex.pct_reduction}%)</strong>.
-        Across all {r.visits.toLocaleString()} visits the change was {all.pct_reduction}%, which is not distinguishable from zero.
-      </p>
+      {(() => {
+        const pre = r.effects.find((e) => e.policy === "synapse" && e.group === "pre-op visits");
+        const sqPre = r.effects.find((e) => e.policy === "shortest_queue" && e.group === "pre-op visits");
+        const S = (pol, g) => r.summary.find((x) => x.policy === pol && x.group === g);
+        const b = S("fixed", "order-flexible visits"), sl = S("synapse", "order-flexible visits");
+        const hours = Math.round((Math.abs(flex.diff_min) * flex.visits) / 60);
+        const share = Math.round((flex.visits / r.visits) * 100);
+        const waitCut = Math.round(((b.mean_wait_min - sl.mean_wait_min) / b.mean_wait_min) * 100);
+        return (
+          <>
+            <div className="impact">
+              <div><strong>{Math.abs(pre.diff_min).toFixed(0)} min</strong><span>faster per pre-op visit (95% CI {Math.abs(pre.ci95[1])}–{Math.abs(pre.ci95[0])})</span></div>
+              <div><strong>{hours} h</strong><span>of patient time saved in {r.days} clinic days ({flex.visits.toLocaleString()} order-flexible visits)</span></div>
+              <div><strong>{waitCut}%</strong><span>less queueing for those patients ({b.mean_wait_min} → {sl.mean_wait_min} min)</span></div>
+              <div><strong>{(pre.diff_min / sqPre.diff_min).toFixed(1)}×</strong><span>the saving of simple shortest-queue routing without ML ({Math.abs(sqPre.diff_min)} min)</span></div>
+            </div>
+            <p className="lede">
+              Where the order of tests can change, Synapse Linker cuts time in clinic by <strong>{Math.abs(flex.diff_min)} min a visit</strong>,
+              and the slowest 10% of these visits finish {(b.p90_total_min - sl.p90_total_min).toFixed(1)} min sooner.
+              Only {share}% of visits have a choice of order today, so the clinic-wide average barely moves ({all.pct_reduction}%):
+              the gain grows as more steps become order-flexible.
+            </p>
+          </>
+        );
+      })()}
       <p className="small muted">
         Synthetic data. Each of the {r.days} days was re-simulated with identical arrivals, service durations and background demand; only the routing policy changed.
         Replay check: baseline mean {r.replay_validation.replay_mean} min vs recorded {r.replay_validation.recorded_mean} min.

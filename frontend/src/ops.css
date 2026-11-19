@@ -37,7 +37,7 @@
 .o-live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .o-live-off { color: var(--high); }
 
-.o-grid { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 0.8rem; align-items: start; }
+.o-grid { display: grid; grid-template-columns: minmax(0, 1fr) 480px; gap: 0.8rem; align-items: start; }
 .o-main, .o-side { display: grid; gap: 0.8rem; }
 .o-panel { background: var(--panel); border-radius: 6px; padding: 0.6rem 0.75rem; border: 1px solid var(--line-soft); }
 .o-h { display: flex; gap: 0.6rem; align-items: baseline; margin: 0 0 0.4rem; }
@@ -121,7 +121,7 @@
 .o-floor .floor { background: var(--panel); padding: 0.6rem 0.75rem; border-radius: 6px; border: 1px solid var(--line-soft); }
 .o-floor .floor h2 { font-size: 0.95rem; margin-bottom: 0.2rem; }
 .floor-compact .floor-wrap { grid-template-columns: 1fr; }
-.floor-compact svg { max-height: 200px; }
+.floor-compact svg { max-height: none; width: 100%; }
 .ops .room-t { fill: var(--ink); }
 .ops .room-s, .ops .jn-label { fill: var(--muted); }
 .ops .jn { fill: var(--muted); }

@@ -28,12 +28,6 @@ def _rec(svc, pid):
 
 
 def scene(svc: SynapseService, n: int) -> dict:
-    # The scripted scenes were designed and tested for one clinic session (config scenario_start /
-    # scenario_day_of_week, Tue 10:00). The models depend on time of day, so at another real time the
-    # same story may not happen. When the clock is on real time, the first scene moves it to that session.
-    start = svc.cfg.get("scenario_start")
-    if start and svc.clock.mode == "real":
-        svc.set_clock(clinic_time=start, day_of_week=svc.cfg.get("scenario_day_of_week", 1))
     return {1: s1, 2: s2, 3: s3, 4: s4, 5: s5, 6: s6, 7: s7, 8: s8, 9: s9}[n](svc)
 
 
@@ -51,31 +45,84 @@ def s1(svc):
 
 def s2(svc):
     if not _exists(svc, "ORTHO_002"):
+        # SIMULATED starting point: the single ECG machine is free right now. Scene 3 then sends it a burst of
+        # ward/ED requests. (Background values are scenario inputs, not predictions.)
+        svc.update_station("ECG", background_queue=0, recent_wait_hint=3.0, arrivals_hint=0)
         svc.check_in({**PATIENTS["ORTHO_002"], "appointment_time": svc.clock.to_dict()["clinic_time"]})
     r = _rec(svc, "ORTHO_002")
     lines = [f"{c['step']}: wait {c['predicted_wait_min']} min, risk {c['alert_level']}, "
              f"group finished in ~{c['est_stage_completion_min']} min" for c in r.get("candidates", [])]
     return dict(scene=2, title="Multi-stage optimisation",
-                narration=["ORTHO_002 is pre-op: X-ray, blood test and ECG may be done in any order (rule R05)."] + lines +
+                narration=["ORTHO_002 is pre-op: X-ray, blood test and ECG may be done in any order (rule R05).",
+                           "SIMULATED: the ECG machine is free at the moment."] + lines +
                           [f"RECOMMENDED ORDER: {' -> '.join(r.get('recommended_sequence', []))}",
                            "ML predicts waits and risk; the look-ahead compares all 6 permitted orders."])
 
 
+TEST_NAME = {"XRAY": "X-ray", "PHLEBOTOMY": "blood-test", "ECG": "ECG"}
+# Simulated congestion levels, mildest first: (waiting, recent mean wait min, arrivals last 15 min).
+CONGESTION = [(6, 35.0, 6), (10, 50.0, 10), (16, 70.0, 14), (24, 90.0, 20), (4, 60.0, 12), (8, 120.0, 16)]
+_FIELDS = ("background_queue", "recent_wait_hint", "arrivals_hint")
+
+
+def _what_if(svc, pid, station, q, w, arr):
+    """Recommended order for `pid` if `station` were congested - computed without changing anything."""
+    with svc.lock:
+        row = svc._station(station)
+        svc.db.update("stations", "station_id", station, background_queue=q, recent_wait_hint=w, arrivals_hint=arr)
+        try:
+            now = svc.clock.now_min()
+            views, doctor_q = svc.station_views(now)
+            p = svc._patient(pid)
+            pv = dict(views)
+            dv, doc = svc.doctor_view(p, views, doctor_q, now)
+            pv["CONSULT"] = dv
+            rec = svc.engine.recommend(svc.patient_context(p, now), pv, svc.clinic_context(now, views, doc),
+                                       explain=False, bn_stations=views)
+            return rec.get("recommended_sequence", [])
+        finally:
+            svc.db.update("stations", "station_id", station, **{k: row[k] for k in _FIELDS})
+
+
 def s3(svc):
+    # Which test the look-ahead puts first depends on the real time of day. The scene congests the
+    # earliest test on ORTHO_002's plan for which the trained models predict that waiting it out is
+    # quicker (the learned profile expects that queue to ease), using the mildest congestion that does.
     if not _exists(svc, "ORTHO_002"): s2(svc)
     before = _rec(svc, "ORTHO_002").get("recommended_sequence", [])
-    svc.update_station("ECG", background_queue=6, recent_wait_hint=35.0, arrivals_hint=6)
-    pr = svc.station_predictions["ECG"]
+    choice = None
+    targets = sorted(before, key=lambda x: x != "ECG")                # the ECG story first, then any other test
+    ok = [lambda tg, a: a.index(tg) > before.index(tg),               # 1st choice: the congested test moves later
+          lambda tg, a: a != before and a.index(tg) >= before.index(tg)]  # else: it reshuffles the others
+    for accept in ok:
+        for target in targets:
+            for lv in CONGESTION:
+                after = _what_if(svc, "ORTHO_002", target, *lv)
+                if after and target in after and accept(target, after):
+                    choice = (target, lv)
+                    break
+            if choice: break
+        if choice: break
+    target, (q, w, arr) = choice or ("ECG", CONGESTION[1])
+    svc.update_station(target, background_queue=q, recent_wait_hint=w, arrivals_hint=arr)
+    pr = svc.station_predictions[target]
     r = _rec(svc, "ORTHO_002")
-    ecg = next((c for c in r.get("candidates", []) if c["step"] == "ECG"), {})
+    after = r.get("recommended_sequence", [])
+    tc = next((c for c in r.get("candidates", []) if c["step"] == target), {})
     best = min((c["est_stage_completion_min"] for c in r.get("candidates", [])), default=0)
+    name = TEST_NAME.get(target, target)
+    moved = target in before and target in after and after.index(target) > before.index(target)
     return dict(scene=3, title="Bottleneck prediction",
-                narration=["SIMULATED: the single ECG machine receives urgent ward and ED requests (6 waiting, recent wait 35 min).",
-                           f"ML: ECG bottleneck probability (next 30 min) = {pr['bottleneck_probability_next_30min']:.2f} "
+                narration=[f"SIMULATED: the {name} room receives urgent ward and ED requests ({q} waiting, recent wait {w:.0f} min).",
+                           f"ML: {name} bottleneck probability (next 30 min) = {pr['bottleneck_probability_next_30min']:.2f} "
                            f"-> alert {pr['alert_level']}; predicted wait for a new arrival {pr['predicted_wait_new_arrival_min']} min.",
-                           f"AUTONOMOUS: ORTHO_002 order {' -> '.join(before)}  ==>  {' -> '.join(r.get('recommended_sequence', []))}",
-                           f"Going to ECG first would take ~{ecg.get('est_stage_completion_min', 0) - best:.0f} min longer; "
-                           "the learned profile expects the ECG queue to ease within the hour."])
+                           f"AUTONOMOUS: ORTHO_002 order {' -> '.join(before)}  ==>  {' -> '.join(after)}",
+                           (f"{name} moves later: the learned profile expects its queue to ease, so going there now would take "
+                            f"~{max(tc.get('est_stage_completion_min', 0) - best, 0):.0f} min longer.") if moved else
+                           (f"The learned profile expects the {name} queue to stay long, so waiting it out does not help; "
+                            f"the other tests are reordered around it."
+                            if after != before else
+                            f"Order kept: at this time of day the models expect the {name} queue to stay long, so moving it does not save time.")])
 
 
 def s4(svc):

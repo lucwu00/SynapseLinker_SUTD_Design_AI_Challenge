@@ -7,7 +7,7 @@ import FloorMap from "./FloorMap";
 const SCENES = [
   [1, "Patient checks in"],
   [2, "Pre-op test order"],
-  [3, "ECG congestion"],
+  [3, "Test-room congestion"],
   [4, "Blood-test room closes"],
   [5, "Robot drives"],
   [6, "Robot handover"],

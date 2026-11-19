@@ -145,7 +145,7 @@ def test_scene3_changes_order(svc):
     before = svc._patient("ORTHO_002")["recommendation"]["recommended_sequence"]
     demo.scene(svc, 3)
     after = svc._patient("ORTHO_002")["recommendation"]["recommended_sequence"]
-    assert after != before and after[-1] == "ECG"
+    assert after != before and after[0] != before[0]          # the congested first test moved later
 
 
 # ---------------------------------------------------------------- navigation

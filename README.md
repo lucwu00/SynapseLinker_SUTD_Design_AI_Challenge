@@ -88,7 +88,7 @@ Scenes 8 and 9 start from a clean clinic and run in real time. Watch the "Demo t
 |---|---|---|
 | 1 Patient checks in | ORTHO_001 checks in with EDi-01, and the robot is dispatched to consult automatically | ML wait; rules give eligibility; robot simulated |
 | 2 Pre-op test order | ORTHO_002 may do X-ray, blood test and ECG in any order; the router compares all 6 orders | ML waits and risks; rule R05 |
-| 3 ECG congestion | ECG load rises, Model B forecasts HIGH risk, and the recommended order changes by itself | Load simulated; forecast and update are ML |
+| 3 Test-room congestion | A test room (ECG first choice) gets a burst of requests, Model B forecasts HIGH risk, and the recommended order changes by itself. Works at any real time: the scene picks the test and congestion level for which the trained models change the order | Load simulated; forecast and update are ML |
 | 4 Blood-test room closes | The closed room is excluded and the patient is re-routed | Rules; room status simulated |
 | 5 Robot drives | The navigation command is shown; the simulated robot arrives; the patient is QUEUED, not completed | Simulation adapter |
 | 6 Robot handover | The clinician orders an X-ray; EDi-01 takes another patient; EDi-02 continues ORTHO_001's journey | Shared database |

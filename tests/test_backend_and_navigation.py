@@ -567,3 +567,22 @@ def test_mark_arrived_uses_demo_world_for_the_scan():
     rooms = {r["room_id"]: r for r in svc.db.query("SELECT * FROM rooms")}
     assert rooms["ROOM_C"]["occupied"] == 1                                    # scan taken from the demo world
     svc.stop()
+
+
+def test_table_demo_story_with_manual_buttons(table_svc):
+    """Staff also press Start service / Add X-ray / Complete X-ray by hand between scenes: no errors."""
+    svc, A, B = table_svc, "ORTHO_001", "ORTHO_101"
+    demo.scene(svc, 1); _drive(svc)
+    svc.start_service(A)
+    svc.change_orders(A, add=["XRAY"])                                   # ordered during the consultation
+    assert svc._patient(A)["required_steps"] == ["REGISTRATION", "CONSULT", "XRAY", "REVIEW", "PAYMENT"]
+    demo.scene(svc, 2)
+    svc.start_service(B)                                                 # system now knows X-ray Room 1 is busy
+    demo.scene(svc, 3); _drive(svc)
+    assert svc._patient(A)["assigned_room"] == "ROOM_C"
+    svc.complete_service(B, "XRAY")
+    demo.scene(svc, 4); _drive(svc)
+    assert svc._patient(B)["status"] == "QUEUED" and svc._patient(B)["assigned_room"] == "ROOM_A"
+    svc.start_service(A); svc.complete_service(A, "XRAY")
+    demo.scene(svc, 5)
+    assert svc.eligible(svc._patient(A)) == ["REVIEW"]

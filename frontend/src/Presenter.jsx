@@ -68,7 +68,8 @@ function OrdersEditor({ p, act }) {
   const left = [...p.completed_steps];
   const pending = [];
   p.required_steps.forEach((x) => { const i = left.indexOf(x); if (i >= 0) left.splice(i, 1); else pending.push(x); });
-  const consulted = p.completed_steps.includes("CONSULT");
+  const inConsult = ["QUEUED", "IN_SERVICE"].includes(p.status) && p.assigned_destination === "CONSULT";
+  const consulted = p.completed_steps.includes("CONSULT") || inConsult;   // the doctor orders for after the consult
   const busy = ["GUIDED", "QUEUED", "IN_SERVICE"].includes(p.status) ? p.assigned_destination : null;
   const addable = (consulted ? POST_ORDERS : PRE_TESTS).filter((x) => !pending.includes(x));
   const url = `/patients/${p.patient_id}/orders`;

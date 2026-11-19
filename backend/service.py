@@ -631,7 +631,9 @@ class SynapseService:
                 raise ServiceError(f"{pid} has finished the visit", 409)
             req, done = list(p["required_steps"]), list(p["completed_steps"])
             busy = p["assigned_destination"] if p["status"] in ("GUIDED", "QUEUED", "IN_SERVICE") else None
-            consulted = "CONSULT" in done
+            # an order made while the patient is with the doctor is for after the consultation
+            in_consult = p["status"] in ("IN_SERVICE", "QUEUED") and p["assigned_destination"] == "CONSULT"
+            consulted = "CONSULT" in done or in_consult
             for step in remove or []:
                 if step in FIXED_STEPS:
                     raise ServiceError(f"{LABEL_TXT.get(step, step)} cannot be removed", 422)
@@ -665,6 +667,8 @@ class SynapseService:
                                 POST_ORDER.index(req[j - 1]) > POST_ORDER.index(step) and j - 1 >= len(done):
                             j -= 1
                         req.insert(j, step)
+                        if step == "XRAY" and "REVIEW" not in req[j + 1:]:   # the doctor reviews the image (R07)
+                            req.insert(j + 1, "REVIEW")
             try:
                 self.rules.build_stages(req, p["visit_type"])
             except ValueError as e:

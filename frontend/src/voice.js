@@ -40,6 +40,10 @@ const INTENTS = {
           zh: ["还有什么", "还要", "剩下", "之后"], ms: ["lagi", "selepas ini", "berapa langkah"], ta: ["மீதம்", "இதற்குப் பிறகு"] },
   next: { en: ["where do i go", "where should i go", "next", "where to", "where am i going", "lost", "which room", "where is my", "where now"],
           zh: ["下一步", "去哪", "哪里", "迷路"], ms: ["seterusnya", "ke mana", "di mana", "sesat"], ta: ["அடுத்து", "எங்கே", "வழி தெரியவில்லை"] },
+  hello: { en: ["hi", "hey", "hello", "good morning", "good afternoon", "good evening", "morning"], zh: ["你好", "您好", "哈喽", "早安", "早上好"],
+           ms: ["hai", "helo", "hello", "selamat pagi", "selamat petang", "assalamualaikum"], ta: ["வணக்கம்", "ஹலோ"] },
+  where: { en: ["where am i", "where is this", "what is this place", "which clinic"], zh: ["我在哪", "这是哪里", "这里是哪里"],
+           ms: ["saya di mana", "di mana saya", "tempat apa ini"], ta: ["நான் எங்கே", "இது எந்த இடம்"] },
   who: { en: ["who are you", "what are you", "what can you do", "your name"], zh: ["你是谁", "你会做什么"],
          ms: ["siapa awak", "apa awak boleh"], ta: ["நீ யார்", "நீங்கள் யார்"] },
   thanks: { en: ["thank", "thanks", "bye", "goodbye"], zh: ["谢谢", "再见"], ms: ["terima kasih", "selamat tinggal"], ta: ["நன்றி"] },
@@ -156,6 +160,12 @@ export function answer(text, ctx, X) {
   if (has(t, pick(lang, "lang")) && /malay|melayu|马来|மலாய்/.test(t)) return { reply: "Baik, saya akan guna Bahasa Melayu.", action: { lang: "ms" } };
   if (has(t, pick(lang, "lang")) && /tamil|淡米尔|தமிழ்/.test(t)) return { reply: "சரி, நான் தமிழில் பேசுகிறேன்.", action: { lang: "ta" } };
   if (has(t, pick(lang, "lang")) && /english|英文|英语|inggeris|ஆங்கிலம்/.test(t)) return { reply: "Okay, I will speak English.", action: { lang: "en" } };
+
+  // a short greeting on its own ("hey", "good morning") - longer questions that start with one go on below
+  const greet = pick(lang, "hello").find((w) => t.startsWith(` ${w} `) || t.startsWith(` ${w}`) && !/^[\x00-\x7f]+$/.test(w));
+  if (greet && t.trim().split(" ").length <= 4 && !has(t, pick(lang, "help")))
+    return { reply: X.hello, action: null };
+  if (has(t, pick(lang, "where"))) return { reply: ctx.p ? ctx.say : X.here, action: null };
 
   if (has(t, pick(lang, "help"))) return { reply: ctx.p ? X.calling : X.noPatientHelp, action: ctx.p ? "help" : null };
   if (has(t, pick(lang, "repeat"))) return { reply: ctx.say, action: "repeat" };

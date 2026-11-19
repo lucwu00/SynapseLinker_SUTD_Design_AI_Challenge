@@ -98,6 +98,8 @@ export const fill = (s, v) => s.replace(/\{(\w+)\}/g, (_, k) => (v[k] ?? ""));
 // Voice assistant (robot screen). Drafts: have native speakers check them.
 export const VOICE = {
   en: {
+    hello: "Hello! I am EDi, the clinic guide robot. Ask me where to go next, how long the wait is, or a question about the clinic.",
+    here: "You are at the orthopaedic clinic. If you have a queue number, enter it on my screen and I will show your next step. Otherwise, please go to the Registration counter.",
     speak: "Ask me", stop: "Stop listening", listening: "Listening… ask your question", transcript: "Conversation",
     hide: "Hide", type: "Or type your question", send: "Ask", empty: "Ask me where to go next, how long the wait is, or a question about the clinic.",
     you: "You", me: "EDi", noMic: "Voice is not available in this browser. You can type your question instead.",
@@ -112,6 +114,8 @@ export const VOICE = {
     notSure: "Sorry, I am not sure about that. Please ask the staff at the counter, or say \"help\" and I will call someone.",
   },
   zh: {
+    hello: "您好！我是诊所导航机器人 EDi。您可以问我下一步去哪里、要等多久，或关于诊所的问题。",
+    here: "您在骨科诊所。如果您有排队号码，请在我的屏幕上输入，我会告诉您下一步。如果没有，请到登记柜台。",
     speak: "问我", stop: "停止聆听", listening: "我在听…请提问", transcript: "对话记录", hide: "隐藏", type: "或输入您的问题", send: "提问",
     empty: "您可以问我下一步去哪里、要等多久。", you: "您", me: "EDi", noMic: "此浏览器不支持语音。您可以输入问题。",
     insecure: "语音功能需要安全（https）网页。您可以输入问题。", notHeard: "对不起，我没听清楚。请再说一次。",
@@ -123,6 +127,8 @@ export const VOICE = {
     notSure: "对不起，这个问题请询问柜台的工作人员。说“帮助”，我会请人过来。",
   },
   ms: {
+    hello: "Hai! Saya EDi, robot pemandu klinik. Tanya saya ke mana seterusnya, berapa lama perlu menunggu, atau soalan tentang klinik.",
+    here: "Anda berada di klinik ortopedik. Jika anda ada nombor giliran, masukkan di skrin saya dan saya akan tunjukkan langkah seterusnya. Jika tiada, sila ke kaunter Pendaftaran.",
     speak: "Tanya saya", stop: "Berhenti mendengar", listening: "Saya sedang mendengar… sila tanya", transcript: "Perbualan", hide: "Sembunyi",
     type: "Atau taip soalan anda", send: "Tanya", empty: "Tanya saya ke mana seterusnya atau berapa lama perlu menunggu.",
     you: "Anda", me: "EDi", noMic: "Suara tidak disokong dalam pelayar ini. Anda boleh menaip soalan.",
@@ -136,6 +142,8 @@ export const VOICE = {
     notSure: "Maaf, sila tanya kakitangan di kaunter. Sebut \"tolong\" dan saya akan panggil seseorang.",
   },
   ta: {
+    hello: "வணக்கம்! நான் EDi, மருத்துவமனை வழிகாட்டி ரோபோ. அடுத்து எங்கே போக வேண்டும், எவ்வளவு நேரம் காத்திருக்க வேண்டும், அல்லது மருத்துவமனை பற்றி என்னிடம் கேளுங்கள்.",
+    here: "நீங்கள் எலும்பியல் மருத்துவமனையில் இருக்கிறீர்கள். வரிசை எண் இருந்தால், என் திரையில் உள்ளிடுங்கள்; அடுத்த படியைக் காட்டுவேன். இல்லையென்றால், பதிவு கவுண்டருக்குச் செல்லுங்கள்.",
     speak: "என்னிடம் கேளுங்கள்", stop: "கேட்பதை நிறுத்து", listening: "கேட்கிறேன்… உங்கள் கேள்வியைக் கேளுங்கள்", transcript: "உரையாடல்", hide: "மறை",
     type: "அல்லது உங்கள் கேள்வியைத் தட்டச்சு செய்யவும்", send: "கேள்", empty: "அடுத்து எங்கே போக வேண்டும், எவ்வளவு நேரம் காத்திருக்க வேண்டும் என்று கேளுங்கள்.",
     you: "நீங்கள்", me: "EDi", noMic: "இந்த உலாவியில் குரல் வசதி இல்லை. கேள்வியைத் தட்டச்சு செய்யலாம்.",

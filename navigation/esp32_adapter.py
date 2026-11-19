@@ -65,6 +65,7 @@ class ESP32Adapter(NavigationAdapter):
         self.tasks[task_id], self.current = task, task
         self.status.state, self.status.task_id = NavState.NAVIGATING, task_id
         self.queue.append(task.command())
+        self.drive_t0[task_id] = time.time()          # the map's estimate starts now, even before the robot polls
         self._emit("NAV_QUEUED", task_id=task_id, destination=destination_station)
         return task
 
@@ -106,6 +107,7 @@ class ESP32Adapter(NavigationAdapter):
         cmd = t.command(); cmd["command"] = "REROUTE"
         self.queue.append(cmd)
         self.acked.discard(task_id); self.sent_at.pop(task_id, None)
+        self.drive_t0[task_id] = time.time()
         self._emit("REROUTED", task_id=task_id, nodes=route.nodes, room_id=route.room_id)
         return t
 
@@ -140,15 +142,13 @@ class ESP32Adapter(NavigationAdapter):
         cmd = self.queue.popleft()
         if cmd.get("command") == "NAVIGATE":
             self.sent_at[cmd["task_id"]] = now
-        if cmd.get("command") in ("NAVIGATE", "REROUTE"):
-            self.drive_t0[cmd["task_id"]] = now
         return cmd
 
     def position_xy(self) -> dict | None:
         """ESTIMATE of where the robot is on its route, from the time since it took the command and its
         usual speed (it reports nothing while Wi-Fi is off). Never shown as arrived: capped before the end."""
         t = self.current
-        if not (t and t.route and t.state == NavState.NAVIGATING and t.task_id in self.drive_t0):
+        if not (t and t.route and t.state in ACTIVE_STATES and t.task_id in self.drive_t0):
             return None
         pts = [self.nodes.get(n) for n in t.route.nodes]
         if not all(pts) or len(pts) < 2:

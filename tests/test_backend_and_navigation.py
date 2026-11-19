@@ -143,10 +143,10 @@ def test_all_demo_scenes_run(svc):
 
 def test_scene3_changes_order(svc):
     demo.scene(svc, 7)
-    before = svc._patient("ORTHO_002")["recommendation"]["recommended_sequence"]
+    assert svc._patient("ORTHO_002")["assigned_destination"] == "XRAY"          # starts with the X-ray
     demo.scene(svc, 8)
-    after = svc._patient("ORTHO_002")["recommendation"]["recommended_sequence"]
-    assert after != before and after[0] != before[0]          # the congested first test moved later
+    pend = svc._pending(svc._patient("ORTHO_002"))
+    assert pend.index("ECG") == pend.index("CONSULT") - 1                       # congested ECG goes to the back
 
 
 # ---------------------------------------------------------------- navigation

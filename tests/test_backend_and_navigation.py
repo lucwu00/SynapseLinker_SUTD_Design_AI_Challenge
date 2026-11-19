@@ -640,3 +640,35 @@ def test_staff_mark_arrived_also_lands_the_robot():
     assert svc._patient("ORTHO_001")["status"] == "QUEUED"
     assert a.get_robot_status().state.value == "ARRIVED" and a.get_robot_status().position == "S3"
     svc.stop()
+
+
+def test_esp32_story_with_staff_confirmations(monkeypatch):
+    """Real robot that never reports (Wi-Fi off): staff confirm arrivals; scene 4 collects Mdm Lee first."""
+    from backend import service as SV
+    monkeypatch.setitem(SV.CONFIG["robots"]["EDi-01"], "adapter", "esp32")
+    svc = SV.SynapseService(db_path=":memory:", predictor=PRED)
+    svc.planner = table_planner()
+    svc.reset()
+    A, B = "ORTHO_001", "ORTHO_101"
+    demo.scene(svc, 1)
+    svc.adapters["EDi-01"].poll_command()
+    assert svc.floor_map()["robots"][0]["position"].get("estimated")             # moving dot while it drives
+    svc.change_orders(A, add=["PHLEBOTOMY"])                                       # tests can be doctor's orders
+    assert svc._patient(A)["required_steps"].index("PHLEBOTOMY") > svc._patient(A)["required_steps"].index("CONSULT")
+    svc.change_orders(A, remove=["PHLEBOTOMY"])
+    svc.arrive_at_station(A)
+    demo.scene(svc, 2); demo.scene(svc, 3)
+    a = svc.adapters["EDi-01"]
+    svc.robot_command("EDi-01", "report_arrival", a.current.task_id)              # X-ray Room 1: occupied
+    svc.arrive_at_station(A)
+    assert svc._patient(A)["assigned_room"] == "ROOM_C"
+    demo.scene(svc, 4)
+    with pytest.raises(ServiceError):                                              # she is being collected
+        svc.confirm_destination(B, "CONSULT")
+    assert svc._patient(B)["status"] == "AWAITING_GUIDANCE"                        # nothing half-changed
+    svc.robot_command("EDi-01", "report_arrival", a.current.task_id)              # collected her
+    svc.arrive_at_station(B)
+    p = svc._patient(B)
+    assert p["status"] == "QUEUED" and p["assigned_destination"] == "CONSULT" and p["assigned_room"] == "ROOM_A"
+    assert a.get_robot_status().position == "S3"
+    svc.stop()

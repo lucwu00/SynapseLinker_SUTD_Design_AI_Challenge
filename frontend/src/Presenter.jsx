@@ -61,7 +61,7 @@ function StationCard({ s, act }) {
 }
 
 const PRE_TESTS = ["XRAY", "PHLEBOTOMY", "ECG"];
-const POST_ORDERS = ["XRAY", "REVIEW", "CAST_ROOM", "DRESSING", "PROCEDURE", "PHARMACY"];
+const POST_ORDERS = ["XRAY", "PHLEBOTOMY", "ECG", "REVIEW", "CAST_ROOM", "DRESSING", "PROCEDURE", "PHARMACY"];
 
 /** Staff add, remove or reorder (drag, or the arrows on a phone) the steps that are not done yet.
  *  The backend checks the workflow rules; a step cannot move across the consultation. */
@@ -70,7 +70,7 @@ function OrdersEditor({ p, act }) {
   const left = [...p.completed_steps];
   const pending = [];
   p.required_steps.forEach((x) => { const i = left.indexOf(x); if (i >= 0) left.splice(i, 1); else pending.push(x); });
-  const inConsult = ["QUEUED", "IN_SERVICE"].includes(p.status) && p.assigned_destination === "CONSULT";
+  const inConsult = ["GUIDED", "QUEUED", "IN_SERVICE"].includes(p.status) && p.assigned_destination === "CONSULT";
   const consulted = p.completed_steps.includes("CONSULT") || inConsult;   // the doctor orders for after the consult
   const busy = ["GUIDED", "QUEUED", "IN_SERVICE"].includes(p.status) ? p.assigned_destination : null;
   const addable = (consulted ? POST_ORDERS : PRE_TESTS).filter((x) => !pending.includes(x));
@@ -237,7 +237,8 @@ function PatientRow({ p, robots, act }) {
 
       {p.status !== "COMPLETED" && <OrdersEditor p={p} act={act} />}
       <div className="row">
-        {p.status === "AWAITING_GUIDANCE" && rec.recommended_station && (
+        {p.collecting_robot && <span className="small pill-staff">{p.collecting_robot} is coming to collect this patient</span>}
+        {p.status === "AWAITING_GUIDANCE" && rec.recommended_station && !p.collecting_robot && (
           <button className="primary" onClick={() => act(`/patients/${pid}/destination`, { step: rec.recommended_station })}>
             Send to {LABEL[rec.recommended_station]}
           </button>

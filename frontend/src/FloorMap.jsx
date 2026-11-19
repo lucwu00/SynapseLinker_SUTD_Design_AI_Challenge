@@ -104,6 +104,7 @@ export default function FloorMap({ compact = false, masked = false }) {
               <g key={i} onClick={() => canEdit && toggleObstacle(e)} className={canEdit ? "trk-g" : ""}>
                 {shape(cls)}
                 {vbots.some((v) => inRoute(v.route, e.from, e.to)) && shape("trk-vroute")}
+                {robot?.state === "NAVIGATING" && onRoute(e.from, e.to) && shape("trk-pdots")}
                 {canEdit && <g>{shape("trk-hit")}<title>{`${e.from}-${e.to}: ${e.obstacle ? "remove obstacle" : "place obstacle"}`}</title></g>}
                 {e.obstacle && <rect x={px(mid.x) - 11} y={py(mid.y) - 11} width="22" height="22" rx="3" className="obstacle" />}
               </g>
@@ -162,7 +163,7 @@ export default function FloorMap({ compact = false, masked = false }) {
           {robot?.position && (
             <g>
               <circle cx={px(robot.position.x)} cy={py(robot.position.y)} r="11" className={`bot bot-${robot.state.toLowerCase()}`} />
-              <text x={px(robot.position.x)} y={py(robot.position.y) - 16} className="bot-t">{robot.robot_id}{robot.patient_id && robot.route.length ? ` + ${who(robot.patient_id)}` : ""}</text>
+              <text x={px(robot.position.x)} y={py(robot.position.y) - 16} className="bot-t">{robot.position.estimated ? "≈ " : ""}{robot.robot_id}{robot.patient_id && robot.route.length ? ` + ${who(robot.patient_id)}` : ""}</text>
             </g>
           )}
         </svg>

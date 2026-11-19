@@ -18,6 +18,7 @@ Commands sent to the robot:
            the first junction instruction may be U_TURN
 """
 from __future__ import annotations
+import math
 import time
 from collections import deque
 
@@ -30,9 +31,10 @@ class ESP32Adapter(NavigationAdapter):
     RADIO_OFF_MSG = "Driving with Wi-Fi off - updates when it stops"
 
     def __init__(self, robot_id: str, on_event=None, comm_timeout_s: float = 6.0, ack_timeout_s: float = 5.0,
-                 nodes: dict | None = None, radio_off_timeout_s: float = 60.0):
+                 nodes: dict | None = None, radio_off_timeout_s: float = 60.0, est_speed_m_s: float = 0.08):
         super().__init__(robot_id, on_event)
         self.marker_node = {n.get("marker"): nid for nid, n in (nodes or {}).items() if n.get("marker")}
+        self.nodes = nodes or {}
         self.status = RobotStatus(robot_id=robot_id, kind="physical", adapter="esp32", position="START",
                                   comm_ok=False, message="Waiting for ESP32 to poll")
         self.queue: deque[dict] = deque()
@@ -42,6 +44,8 @@ class ESP32Adapter(NavigationAdapter):
         # reconnects when it stops, so a longer silence is expected until the next contact.
         self.radio_off_timeout_s, self.radio_off = radio_off_timeout_s, False
         self.sent_at: dict[str, float] = {}
+        self.drive_t0: dict[str, float] = {}       # when the robot took the current route (for the estimated dot)
+        self.est_speed_m_s = est_speed_m_s
         self.acked: set[str] = set()
 
     def _emit(self, kind, **data):
@@ -136,7 +140,27 @@ class ESP32Adapter(NavigationAdapter):
         cmd = self.queue.popleft()
         if cmd.get("command") == "NAVIGATE":
             self.sent_at[cmd["task_id"]] = now
+        if cmd.get("command") in ("NAVIGATE", "REROUTE"):
+            self.drive_t0[cmd["task_id"]] = now
         return cmd
+
+    def position_xy(self) -> dict | None:
+        """ESTIMATE of where the robot is on its route, from the time since it took the command and its
+        usual speed (it reports nothing while Wi-Fi is off). Never shown as arrived: capped before the end."""
+        t = self.current
+        if not (t and t.route and t.state == NavState.NAVIGATING and t.task_id in self.drive_t0):
+            return None
+        pts = [self.nodes.get(n) for n in t.route.nodes]
+        if not all(pts) or len(pts) < 2:
+            return None
+        segs = [math.dist((a["x"], a["y"]), (b["x"], b["y"])) for a, b in zip(pts, pts[1:])]
+        d = min((time.time() - self.drive_t0[t.task_id]) * self.est_speed_m_s, 0.92 * sum(segs))
+        for a, b, L in zip(pts, pts[1:], segs):
+            if d <= L:
+                k = d / (L or 1)
+                return {"x": a["x"] + k * (b["x"] - a["x"]), "y": a["y"] + k * (b["y"] - a["y"]), "estimated": True}
+            d -= L
+        return None
 
     def _radio_back(self):
         if self.radio_off:

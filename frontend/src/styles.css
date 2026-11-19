@@ -319,3 +319,6 @@ button.big { font-size: 1.3rem; min-height: 3.6rem; border-radius: var(--radius-
 .queues { margin-top: 1rem; }
 .queue ol { list-style: none; padding: 0; margin: .3rem 0; display: grid; gap: .3rem; }
 .queue li { display: flex; gap: .4rem; align-items: center; padding: .35rem .5rem; border-radius: 8px; background: var(--panel); cursor: grab; }
+.trk-pdots { stroke: #fff; stroke-width: 3; stroke-dasharray: 1 9; stroke-linecap: round; pointer-events: none; animation: dots 1.2s linear infinite; }
+@keyframes dots { to { stroke-dashoffset: -20; } }
+@media (prefers-reduced-motion: reduce) { .trk-pdots { animation: none; } }

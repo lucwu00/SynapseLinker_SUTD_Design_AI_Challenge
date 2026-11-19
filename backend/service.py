@@ -37,8 +37,8 @@ CONFIG = json.loads((ROOT / "config" / "backend_config.json").read_text(encoding
 # Demo-day switch without editing JSON:  set SYNAPSE_ROBOT_ADAPTER=esp32  -> EDi-01 is the real OjanBot
 if os.environ.get("SYNAPSE_ROBOT_ADAPTER") in ("esp32", "simulation"):
     CONFIG["robots"]["EDi-01"]["adapter"] = os.environ["SYNAPSE_ROBOT_ADAPTER"]
-POST_CONSULT = {"XRAY", "REVIEW", "CAST_ROOM", "DRESSING", "PROCEDURE", "PHARMACY"}
-POST_ORDER = ["XRAY", "REVIEW", "CAST_ROOM", "DRESSING", "PROCEDURE", "PHARMACY"]   # phase order R07-R12
+POST_CONSULT = {"XRAY", "PHLEBOTOMY", "ECG", "REVIEW", "CAST_ROOM", "DRESSING", "PROCEDURE", "PHARMACY"}
+POST_ORDER = ["XRAY", "PHLEBOTOMY", "ECG", "REVIEW", "CAST_ROOM", "DRESSING", "PROCEDURE", "PHARMACY"]   # phase order R07-R12
 PRE_CONSULT = ["XRAY", "PHLEBOTOMY", "ECG"]
 FIXED_STEPS = {"REGISTRATION", "CONSULT", "PAYMENT"}
 LABEL_TXT = {"REGISTRATION": "Registration", "CONSULT": "Consultation", "PAYMENT": "Payment", "XRAY": "X-ray",
@@ -179,7 +179,8 @@ class SynapseService:
                         obstacle_on=lambda a, b: edge_key(a, b) in self.world["obstacles"],
                         room_occupied=lambda room: room in self.world["people"])
                 elif r["adapter"] == "esp32":
-                    self.adapters[rid] = ESP32Adapter(rid, on_event=self._robot_event, nodes=m["nodes"])
+                    self.adapters[rid] = ESP32Adapter(rid, on_event=self._robot_event, nodes=m["nodes"],
+                                                      est_speed_m_s=m.get("robot_speed_m_s", 0.08))
                 self.db.upsert("robots", "robot_id", dict(robot_id=rid, kind=r["kind"], adapter=r["adapter"],
                                                           patient_id=None, status="IDLE", updated_at=now))
             self.robot_heading = {rid: None for rid in self.cfg["robots"]}   # node each robot faces away from
@@ -645,11 +646,19 @@ class SynapseService:
             if not self._station(st)["available"]:
                 raise ServiceError(f"{st} is currently unavailable", 409)
             rid = robot_id or p["robot_id"]
+            pick = next((t for t, (x, _) in self.pickups.items() if x == pid), None)
+            if pick and rid in self.adapters and self.adapters[rid].current and self.adapters[rid].current.task_id == pick:
+                raise ServiceError(f"{rid} is on its way to collect {pid}; it will guide them on when it gets there", 409)
+            before = dict(status=p["status"], assigned_destination=p["assigned_destination"])
             self.db.update("patients", "patient_id", pid, status="GUIDED", assigned_destination=step, updated_at=time.time())
             self._event("DESTINATION_CONFIRMED", source, f"{pid} -> {step}", patient_id=pid, station_id=st, robot_id=rid)
             task = None
             if rid:
-                task = self.create_nav_task(rid, pid, step)
+                try:
+                    task = self.create_nav_task(rid, pid, step)
+                except ServiceError:
+                    self.db.update("patients", "patient_id", pid, updated_at=time.time(), **before)   # undo
+                    raise
             self.bus.publish({"type": "state", "reason": "destination"})
             return {"journey": self.journey(pid), "navigation_task": task}
 
@@ -1071,7 +1080,12 @@ class SynapseService:
                         f"{self.planner.map['rooms'][room]['label']}", robot_id=a.robot_id, patient_id=pid)
             p = self._patient(pid)
             nxt = self.eligible(p)
-            if p["status"] == "AWAITING_GUIDANCE" and nxt and p["robot_id"] == a.robot_id:
+            if p["status"] == "GUIDED" and p["assigned_destination"] and p["robot_id"] == a.robot_id:
+                try:
+                    self.create_nav_task(a.robot_id, pid, p["assigned_destination"])
+                except ServiceError as e:
+                    self._event("GUIDANCE_WAITING", "system", f"{pid}: {e}", patient_id=pid)
+            elif p["status"] == "AWAITING_GUIDANCE" and nxt and p["robot_id"] == a.robot_id:
                 rec = p.get("recommendation") or {}
                 step = rec.get("recommended_station") if rec.get("recommended_station") in nxt else nxt[0]
                 try:
@@ -1416,6 +1430,8 @@ class SynapseService:
                                                           "completed_steps", "recommendation", "updated_at")},
                                      eligible_now=j["eligible_now"], queue=j["queue"], patients_ahead=j["patients_ahead"],
                                      order_locked=p["patient_id"] in self.order_locked,
+                                     collecting_robot=next((a.robot_id for t, (x, _) in self.pickups.items() if x == p["patient_id"]
+                                                            for a in self.adapters.values() if a.current and a.current.task_id == t), None),
                                      room=j["room"],
                                      minutes_in_clinic=round(now - p["checked_in_min"], 1)))
             queues = []

@@ -718,3 +718,16 @@ def test_esp32_map_estimate_respects_the_trolley(monkeypatch):
     assert a.current.route.nodes[:2] == ["J_L", "J_R"]                          # turned round, middle corridor
     assert ("C_TL", "J_L") in svc.planner.blocked
     svc.stop()
+
+
+def test_clock_advance_brings_a_busy_day_from_the_data(svc):
+    """+15 min: queues move towards the snapshots' busy-day level and patients from the records arrive."""
+    svc.set_clock("10:45", None, None, 4)
+    before = {s["station_id"]: s for s in svc.dashboard_state()["stations"]}
+    svc.set_clock(None, None, 15, None)
+    after = {s["station_id"]: s for s in svc.dashboard_state()["stations"]}
+    assert after["XRAY"]["queue_length"] > before["XRAY"]["queue_length"]
+    assert after["XRAY"]["prediction"]["predicted_wait_new_arrival_min"] > before["XRAY"]["prediction"]["predicted_wait_new_arrival_min"]
+    surge = [p for p in svc.dashboard_state()["patients"] if p["patient_id"].startswith("SURGE_")]
+    assert len(surge) == 2 and all("(fictional)" in p["display_name"] for p in surge)
+    assert any(e["type"] == "BUSY_DAY" for e in svc.db.query("SELECT type FROM events"))

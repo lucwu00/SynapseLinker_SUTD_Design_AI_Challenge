@@ -198,6 +198,7 @@ class SynapseService:
             self.run_tag = f"{self.resets % 1000:03d}_"
             self.history = {}
             self.station_predictions = {}
+            self.surge_last = self.clock.now_min()        # busy-day surge (demo clock) starts from here
             self._event("SYSTEM_RESET", "system", "Demo reset")
             self.refresh("reset")
 
@@ -209,6 +210,8 @@ class SynapseService:
             with self.lock:
                 for a in self.adapters.values():
                     a.tick(now - last)
+                if self.clock.speed > 1 and int(self.clock.now_min() // 15) > int(self.surge_last // 15):
+                    self._surge_to(self.clock.now_min())       # Run x10: the clinic gets busier as time runs
                 if now - last_refresh >= self.cfg["refresh_every_s"]:
                     self.refresh("periodic"); last_refresh = now
             last = now
@@ -1556,6 +1559,23 @@ class SynapseService:
                         stations=stations, patients=patients, robots=robots, nav_tasks=tasks, events=events, alerts=alerts,
                         map=dict(path=Path(self.planner.map["_path"]).name, warning=self.planner.map.get("_WARNING")))
 
+    def _surge_to(self, now_min: float):
+        """Demo clock moved on: one busy-day surge step per 15 clinic minutes passed (see backend/surge.py)."""
+        from backend import surge
+        start = getattr(self, "surge_last", now_min)
+        steps = [m for m in range(int(start // 15 + 1) * 15, int(now_min) + 1, 15)][-8:]
+        self.surge_last = now_min
+        for m in steps:
+            try:
+                out = surge.step(self, m)
+            except Exception as e:                       # the demo must keep running without the data files
+                self._event("SURGE_SKIPPED", "demo", f"Busy-day surge not applied: {e}")
+                return
+            self._event("BUSY_DAY", "demo", f"{fmt_min(m)} busy-day level from the clinic snapshots (90th "
+                        f"percentile for this weekday and time): queues {', '.join(out['stations']) or 'unchanged'}; "
+                        f"{len(out['patients'])} patients arrived ({', '.join(out['patients']) or '-'})")
+        self.refresh("surge")
+
     def set_clock(self, clinic_time: str | None = None, speed: float | None = None, advance_min: float | None = None,
                   day_of_week: int | None = None):
         with self.lock:
@@ -1566,6 +1586,7 @@ class SynapseService:
                 self.clock.set(cur, day_of_week, speed)
             if advance_min:
                 self.clock.advance(advance_min)
+                self._surge_to(self.clock.now_min())
             if clinic_time or advance_min or (speed is not None and speed != 1):
                 self.clock.mode = "set"
             self._event("CLOCK_SET", "demo", f"Clinic clock {fmt_min(self.clock.now_min())} x{self.clock.speed}")
